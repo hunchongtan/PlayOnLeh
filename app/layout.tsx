@@ -15,6 +15,7 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
+const qageApiKey = process.env.NEXT_PUBLIC_QAGE_API_KEY;
 
 export const metadata: Metadata = {
   title: "PlayOnLeh",
@@ -37,12 +38,14 @@ export default function RootLayout({
         <AppShell>{children}</AppShell>
         <Toaster richColors position="top-center" />
         <Analytics />
-        <Script
-          async
-          data-api-key="f2478ef6-8488-4373-b706-edeb6ac06069"
-          src="https://js.qage.dev/qage-widget.umd.js"
-          strategy="afterInteractive"
-        />
+        {qageApiKey ? (
+          <Script
+            async
+            data-api-key={qageApiKey}
+            src="https://js.qage.dev/qage-widget.umd.js"
+            strategy="afterInteractive"
+          />
+        ) : null}
       </body>
     </html>
   );

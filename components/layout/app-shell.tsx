@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { MobileSidebarSheet } from "@/components/layout/mobile-sidebar-sheet";
 import { ScanGameProvider } from "@/components/layout/scan-game-context";
 import { Sidebar } from "@/components/layout/sidebar";
-import { ScanResultsDialog } from "@/components/scan/scan-results-dialog";
+import { ScanResultsDialog, ScanResultsDialogHandle } from "@/components/scan/scan-results-dialog";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -13,11 +13,15 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [scanOpen, setScanOpen] = useState(false);
   const scanSourceRef = useRef<"sidebar" | "input">("sidebar");
   const scanSelectHandlerRef = useRef<((gameId: string) => void) | null>(null);
+  const scanDialogRef = useRef<ScanResultsDialogHandle | null>(null);
 
-  function openScanGame(options?: { onSelectGame?: (gameId: string) => void; source?: "sidebar" | "input" }) {
+  function openScanGame(options?: { onSelectGame?: (gameId: string) => void; source?: "sidebar" | "input"; openCamera?: boolean }) {
     scanSelectHandlerRef.current = options?.onSelectGame ?? null;
     scanSourceRef.current = options?.source ?? (options?.onSelectGame ? "input" : "sidebar");
     setScanOpen(true);
+    if (options?.openCamera !== false) {
+      scanDialogRef.current?.openCameraPicker();
+    }
   }
 
   return (
@@ -33,6 +37,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </ScanGameProvider>
       <ScanResultsDialog
+        ref={scanDialogRef}
         open={scanOpen}
         onOpenChange={(open) => setScanOpen(open)}
         onCancel={() => {
@@ -44,11 +49,6 @@ export function AppShell({ children }: { children: ReactNode }) {
           scanSelectHandlerRef.current = null;
           if (customSelectHandler) {
             customSelectHandler(gameId);
-            return;
-          }
-          if (scanSourceRef.current === "sidebar") {
-            router.push(`/games/${gameId}`);
-            return;
           }
           router.push(`/games/${gameId}`);
         }}

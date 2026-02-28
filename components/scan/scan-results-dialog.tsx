@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { Camera, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -20,7 +20,23 @@ type GameMeta = {
   coverImageUrl?: string;
 };
 
-export function ScanResultsDialog({
+export type ScanResultsDialogHandle = {
+  openCameraPicker: () => void;
+  openUploadPicker: () => void;
+};
+
+export const ScanResultsDialog = forwardRef<
+  ScanResultsDialogHandle,
+  {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onConfirmCandidate: (gameId: string) => void;
+    onCancel: () => void;
+    title?: string;
+    description?: string;
+    lowConfidenceThreshold?: number;
+  }
+>(function ScanResultsDialog({
   open,
   onOpenChange,
   onConfirmCandidate,
@@ -36,7 +52,7 @@ export function ScanResultsDialog({
   title?: string;
   description?: string;
   lowConfidenceThreshold?: number;
-}) {
+}, ref) {
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -45,7 +61,23 @@ export function ScanResultsDialog({
   const [gameMetaById, setGameMetaById] = useState<Record<string, GameMeta>>({});
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
-  const didAutoOpenRef = useRef(false);
+
+  function openCameraPicker() {
+    setError(null);
+    setInfo(null);
+    cameraInputRef.current?.click();
+  }
+
+  function openUploadPicker() {
+    setError(null);
+    setInfo(null);
+    uploadInputRef.current?.click();
+  }
+
+  useImperativeHandle(ref, () => ({
+    openCameraPicker,
+    openUploadPicker,
+  }));
 
   const renderedCandidates = useMemo(
     () =>
@@ -86,7 +118,6 @@ export function ScanResultsDialog({
 
   useEffect(() => {
     if (!open) {
-      didAutoOpenRef.current = false;
       setIsScanning(false);
       setError(null);
       setInfo(null);
@@ -96,11 +127,6 @@ export function ScanResultsDialog({
       }
       setPreviewUrl(null);
       return;
-    }
-
-    if (!didAutoOpenRef.current) {
-      didAutoOpenRef.current = true;
-      cameraInputRef.current?.click();
     }
   }, [open, previewUrl]);
 
@@ -155,7 +181,35 @@ export function ScanResultsDialog({
   }
 
   return (
-    <Dialog
+    <>
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) {
+            void handleScanFile(file);
+          }
+          event.currentTarget.value = "";
+        }}
+      />
+      <input
+        ref={uploadInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) {
+            void handleScanFile(file);
+          }
+          event.currentTarget.value = "";
+        }}
+      />
+      <Dialog
       open={open}
       onOpenChange={(nextOpen) => {
         onOpenChange(nextOpen);
@@ -169,34 +223,6 @@ export function ScanResultsDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription className="text-white/70">{description}</DialogDescription>
         </DialogHeader>
-
-        <input
-          ref={cameraInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) {
-              void handleScanFile(file);
-            }
-            event.currentTarget.value = "";
-          }}
-        />
-        <input
-          ref={uploadInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) {
-              void handleScanFile(file);
-            }
-            event.currentTarget.value = "";
-          }}
-        />
 
         <div className="space-y-4">
           {previewUrl ? (
@@ -212,7 +238,7 @@ export function ScanResultsDialog({
               type="button"
               variant="outline"
               className="h-10 justify-center border-white/20 bg-white/5 text-white hover:bg-white/10"
-              onClick={() => uploadInputRef.current?.click()}
+              onClick={openUploadPicker}
               disabled={isScanning}
             >
               <Upload className="mr-2 h-4 w-4" />
@@ -222,7 +248,7 @@ export function ScanResultsDialog({
               type="button"
               variant="ghost"
               className="h-10 justify-center text-white/80 hover:bg-white/10 hover:text-white"
-              onClick={() => cameraInputRef.current?.click()}
+              onClick={openCameraPicker}
               disabled={isScanning}
             >
               <Camera className="mr-2 h-4 w-4" />
@@ -237,7 +263,7 @@ export function ScanResultsDialog({
           {showResultsScreen ? (
             <div className="space-y-2">
               <p className="text-sm font-medium">Top matches</p>
-              <div className="grid grid-flow-col auto-cols-[minmax(140px,1fr)] gap-2 overflow-x-auto pb-1 sm:auto-cols-[minmax(150px,1fr)]">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
                 {renderedCandidates.map((candidate) => {
                   const meta = gameMetaById[candidate.gameId];
                   const imageUrl = meta?.coverImageUrl;
@@ -270,6 +296,7 @@ export function ScanResultsDialog({
           ) : null}
         </div>
       </DialogContent>
-    </Dialog>
+      </Dialog>
+    </>
   );
-}
+});

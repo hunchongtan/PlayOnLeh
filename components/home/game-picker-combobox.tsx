@@ -160,6 +160,7 @@ export const GamePickerCombobox = forwardRef<
           onClick={() =>
             scanGame?.openScanGame({
               source: "input",
+              openCamera: true,
               onSelectGame: (gameId) => {
                 if (!isGameId(gameId)) return;
                 onSelectGame(gameId);
