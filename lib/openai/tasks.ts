@@ -453,10 +453,11 @@ function buildFinalAnswer(params: {
   }
 
   const shouldAppendOnlineText = !base || !base.toLowerCase().includes(onlineText.toLowerCase());
-  return [base, note, shouldAppendOnlineText ? onlineText : ""]
+  return [base, shouldAppendOnlineText ? onlineText : ""]
     .filter(Boolean)
     .join("\n\n")
-    .replace(/\s{2,}/g, " ")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
