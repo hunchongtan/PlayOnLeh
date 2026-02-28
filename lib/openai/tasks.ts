@@ -441,11 +441,21 @@ function buildFinalAnswer(params: {
     return base;
   }
 
+  const onlineText = sanitizeGeneratedReply(params.onlineFallback.text).trim();
   const note = "I also checked online sources, but there isn't a clear official answer there either.";
 
-  return [base, note]
+  if (!onlineText) {
+    return [base, note]
+      .filter(Boolean)
+      .join(" ")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  }
+
+  const shouldAppendOnlineText = !base || !base.toLowerCase().includes(onlineText.toLowerCase());
+  return [base, note, shouldAppendOnlineText ? onlineText : ""]
     .filter(Boolean)
-    .join(" ")
+    .join("\n\n")
     .replace(/\s{2,}/g, " ")
     .trim();
 }
