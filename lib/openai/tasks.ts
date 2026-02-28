@@ -443,6 +443,7 @@ function buildFinalAnswer(params: {
 
   const onlineText = sanitizeGeneratedReply(params.onlineFallback.text).trim();
   const note = "I also checked online sources, but there isn't a clear official answer there either.";
+  const onlineUsedNote = "I also checked online sources and found this additional guidance.";
 
   if (!onlineText) {
     return [base, note]
@@ -453,7 +454,7 @@ function buildFinalAnswer(params: {
   }
 
   const shouldAppendOnlineText = !base || !base.toLowerCase().includes(onlineText.toLowerCase());
-  return [base, shouldAppendOnlineText ? onlineText : ""]
+  return [base, onlineUsedNote, shouldAppendOnlineText ? onlineText : ""]
     .filter(Boolean)
     .join("\n\n")
     .replace(/[ \t]{2,}/g, " ")
