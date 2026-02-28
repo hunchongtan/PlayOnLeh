@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import { AppShell } from "@/components/layout/app-shell";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
@@ -36,6 +37,12 @@ export default function RootLayout({
         <AppShell>{children}</AppShell>
         <Toaster richColors position="top-center" />
         <Analytics />
+        <Script
+          async
+          data-api-key="f2478ef6-8488-4373-b706-edeb6ac06069"
+          src="https://js.qage.dev/qage-widget.umd.js"
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );
