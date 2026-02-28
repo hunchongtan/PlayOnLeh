@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -33,6 +33,7 @@ export function HouseRulesForm({
   onCancelDraft?: () => void;
 }) {
   const router = useRouter();
+  const submitLockRef = useRef(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,7 +87,7 @@ export function HouseRulesForm({
   }
 
   async function handleSubmit() {
-    if (!canStart || isSaving) return;
+    if (!canStart || isSaving || submitLockRef.current || isSubmitting) return;
     const draftState: HouseRulesDraftState = {
       houseRulesMode: mode,
       houseRulesJson: mode === "custom" ? values : {},
@@ -99,6 +100,7 @@ export function HouseRulesForm({
     }
 
     setIsSubmitting(true);
+    submitLockRef.current = true;
     setError(null);
 
     try {
@@ -125,6 +127,7 @@ export function HouseRulesForm({
       setError(submitError instanceof Error ? submitError.message : "Failed to create session");
     } finally {
       setIsSubmitting(false);
+      submitLockRef.current = false;
     }
   }
 

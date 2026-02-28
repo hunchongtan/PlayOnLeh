@@ -171,6 +171,7 @@ Manual smoke checks:
 - Confirm object names match `games.cover_object_path` and `games.rules_pdf_object_path`.
 
 ### Chat image upload fails
-- Confirm `chat-images` bucket exists and is public.
+- Confirm `chat-images` bucket exists (exact name, case-sensitive) in the same Supabase project as `NEXT_PUBLIC_SUPABASE_URL`.
+- For MVP, keep `chat-images` public.
 - Use JPG/PNG/WEBP under 8MB.
 

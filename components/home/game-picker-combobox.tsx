@@ -6,19 +6,13 @@ import { Camera, ChevronDown, Gamepad2, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HomeGame, HomeRecentGame } from "@/components/home/types";
 import { GameId } from "@/lib/games/types";
-
-type ScanCandidate = {
-  gameId: GameId;
-  name: string;
-  confidence: number;
-};
+import { useScanGame } from "@/components/layout/scan-game-context";
 
 export type GamePickerComboboxHandle = {
   focusAndOpen: () => void;
 };
 
 const SUPPORTED_GAME_IDS: GameId[] = ["uno", "uno-flip", "mahjong"];
-const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]);
 
 function isGameId(value: string): value is GameId {
   return SUPPORTED_GAME_IDS.includes(value as GameId);
@@ -71,15 +65,10 @@ export const GamePickerCombobox = forwardRef<
 >(function GamePickerCombobox({ games, recentGames, selectedGame, onSelectGame, onClear }, ref) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const uploadInputRef = useRef<HTMLInputElement | null>(null);
-  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const scanGame = useScanGame();
 
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [scanResults, setScanResults] = useState<ScanCandidate[]>([]);
-  const [scanInfo, setScanInfo] = useState<string | null>(null);
-  const [scanError, setScanError] = useState<string | null>(null);
-  const [scanLoading, setScanLoading] = useState(false);
 
   useImperativeHandle(ref, () => ({
     focusAndOpen() {
@@ -104,54 +93,6 @@ export const GamePickerCombobox = forwardRef<
     if (!term) return games;
     return games.filter((game) => `${game.name} ${game.category}`.toLowerCase().includes(term));
   }, [games, query]);
-
-  const visibleScanResults = useMemo(() => scanResults.slice(0, 5), [scanResults]);
-
-  async function scanImage(file: File) {
-    if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
-      setScanError("Unsupported image type. Use JPG, PNG, WEBP, or HEIC.");
-      setOpen(true);
-      return;
-    }
-
-    setScanLoading(true);
-    setScanError(null);
-    setScanInfo("Scanning...");
-    setOpen(true);
-
-    const formData = new FormData();
-    formData.set("image", file);
-
-    try {
-      const res = await fetch("/api/identify-game", {
-        method: "POST",
-        body: formData,
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error ?? "Could not scan image");
-      }
-
-      const candidates = Array.isArray(data.candidates) ? data.candidates : [];
-      const parsed: ScanCandidate[] = candidates
-        .map((candidate: { gameId?: string; name?: string; confidence?: number }) => ({
-          gameId: candidate.gameId,
-          name: candidate.name,
-          confidence: candidate.confidence,
-        }))
-        .filter((candidate: ScanCandidate) => isGameId(candidate.gameId))
-        .slice(0, 5);
-
-      setScanResults(parsed);
-      setScanInfo(parsed.length ? "Scan results ready." : "No likely matches found.");
-    } catch (error) {
-      setScanError(error instanceof Error ? error.message : "Could not scan image");
-      setScanInfo(null);
-      setScanResults([]);
-    } finally {
-      setScanLoading(false);
-    }
-  }
 
   const inputValue = open ? query : selectedGame?.name ?? "";
 
@@ -210,47 +151,23 @@ export const GamePickerCombobox = forwardRef<
           </Button>
         ) : null}
 
-        <input
-          ref={cameraInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) {
-              void scanImage(file);
-            }
-            event.currentTarget.value = "";
-          }}
-        />
-        <input
-          ref={uploadInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) {
-              void scanImage(file);
-            }
-            event.currentTarget.value = "";
-          }}
-        />
-
         <Button
           type="button"
           variant="ghost"
           size="icon"
           aria-label="Scan Game"
           className="h-8 w-8 text-white/70 hover:bg-white/10 hover:text-white"
-          onClick={() => {
-            if (/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-              cameraInputRef.current?.click();
-              return;
-            }
-            uploadInputRef.current?.click();
-          }}
+          onClick={() =>
+            scanGame?.openScanGame({
+              source: "input",
+              onSelectGame: (gameId) => {
+                if (!isGameId(gameId)) return;
+                onSelectGame(gameId);
+                setOpen(false);
+                setQuery("");
+              },
+            })
+          }
         >
           <Camera className="h-4 w-4" />
         </Button>
@@ -268,27 +185,6 @@ export const GamePickerCombobox = forwardRef<
 
       {open ? (
         <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-40 max-h-[420px] overflow-y-auto rounded-xl border border-white/12 bg-[#141a2b] p-2 shadow-2xl">
-          {visibleScanResults.length > 0 ? (
-            <div className="space-y-1 border-b border-white/10 px-2 py-2">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#f2aa4c]">Scan results</p>
-              {visibleScanResults.map((candidate) => (
-                <button
-                  key={`scan-${candidate.gameId}`}
-                  type="button"
-                  onClick={() => {
-                    onSelectGame(candidate.gameId);
-                    setOpen(false);
-                    setQuery("");
-                  }}
-                  className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left transition hover:bg-white/[0.08]"
-                >
-                  <span className="text-sm text-white">{candidate.name}</span>
-                  <span className="text-xs text-white/65">{Math.round(candidate.confidence * 100)}%</span>
-                </button>
-              ))}
-            </div>
-          ) : null}
-
           <RecentRow
             recentGames={recentGames}
             onSelectGame={(gameId) => {
@@ -334,10 +230,6 @@ export const GamePickerCombobox = forwardRef<
               ))
             )}
           </div>
-
-          {scanLoading ? <p className="px-3 pb-2 text-xs text-[#f8c57d]">Scanning...</p> : null}
-          {scanInfo ? <p className="px-3 pb-2 text-xs text-white/60">{scanInfo}</p> : null}
-          {scanError ? <p className="px-3 pb-2 text-xs text-red-300">{scanError}</p> : null}
         </div>
       ) : null}
     </div>

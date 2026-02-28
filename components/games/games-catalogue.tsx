@@ -78,7 +78,16 @@ export function GamesCatalogue() {
             variant="ghost"
             size="icon"
             aria-label="Scan Game"
-            onClick={() => scanGame?.openScanGame()}
+            onClick={() =>
+              scanGame?.openScanGame({
+                source: "input",
+                onSelectGame: (gameId) => {
+                  const selected = games.find((game) => game.id === gameId);
+                  if (!selected) return;
+                  setSearch(selected.name);
+                },
+              })
+            }
             className="absolute right-1.5 top-1/2 h-8 w-8 -translate-y-1/2 rounded-md text-white/80 hover:bg-white/10 hover:text-white"
           >
             <Camera className="h-4 w-4" />

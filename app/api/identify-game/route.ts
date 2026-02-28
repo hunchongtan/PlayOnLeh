@@ -14,7 +14,10 @@ export async function POST(req: Request) {
     }
 
     if (!ALLOWED_MIME.has(image.type)) {
-      return NextResponse.json({ error: "Unsupported file type" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Unsupported file type. Please use JPG, PNG, or WEBP." },
+        { status: 400 }
+      );
     }
 
     if (image.size > MAX_BYTES) {
@@ -26,8 +29,16 @@ export async function POST(req: Request) {
     const dataUrl = `data:${image.type};base64,${base64}`;
 
     const result = await identifyGameFromImage({ base64DataUrl: dataUrl });
+    const candidates = Array.isArray(result.candidates)
+      ? [...result.candidates].sort((a, b) => b.confidence - a.confidence).slice(0, 5)
+      : [];
+    const best = candidates[0];
 
-    return NextResponse.json(result);
+    return NextResponse.json({
+      ...result,
+      candidates,
+      best,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

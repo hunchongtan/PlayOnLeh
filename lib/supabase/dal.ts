@@ -398,19 +398,39 @@ function extensionFromMime(mime: string) {
 
 export async function uploadChatImage(params: { sessionId: string; file: File; mime: string }) {
   const supabase = getSupabaseAdminClient();
+  const bucketName = "chat-images";
+  await ensureStorageBucketExists(supabase, bucketName);
   const ext = extensionFromMime(params.mime);
   const objectPath = `sessions/${params.sessionId}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
   const buffer = Buffer.from(await params.file.arrayBuffer());
-  const { error } = await supabase.storage.from("chat-images").upload(objectPath, buffer, {
+  const { error } = await supabase.storage.from(bucketName).upload(objectPath, buffer, {
     contentType: params.mime,
     upsert: false,
   });
 
   if (error) {
-    throw new Error(`Failed to upload chat image: ${error.message}`);
+    throw new Error(
+      `Failed to upload chat image to '${bucketName}': ${error.message}. Ensure the bucket exists in the same Supabase project configured by NEXT_PUBLIC_SUPABASE_URL.`
+    );
   }
 
-  return buildPublicStorageUrl("chat-images", objectPath);
+  return buildPublicStorageUrl(bucketName, objectPath);
+}
+
+async function ensureStorageBucketExists(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  bucketName: string
+) {
+  const { data, error } = await supabase.storage.listBuckets();
+  if (error) {
+    throw new Error(`Unable to verify storage buckets: ${error.message}`);
+  }
+
+  const exists = (data ?? []).some((bucket) => bucket.name === bucketName);
+  if (!exists) {
+    console.warn(`[storage] Missing expected bucket '${bucketName}'. Uploads will fail until it is created.`);
+    throw new Error(`Bucket not found: '${bucketName}'`);
+  }
 }
 
 function vectorToPg(embedding: number[]): string {

@@ -3,7 +3,7 @@
 import { createContext, useContext } from "react";
 
 type ScanGameContextValue = {
-  openScanGame: (options?: { onSelectGame?: (gameId: string) => void }) => void;
+  openScanGame: (options?: { onSelectGame?: (gameId: string) => void; source?: "sidebar" | "input" }) => void;
 };
 
 const ScanGameContext = createContext<ScanGameContextValue | null>(null);

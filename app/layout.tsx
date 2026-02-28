@@ -19,9 +19,9 @@ export const metadata: Metadata = {
   title: "PlayOnLeh",
   description: "AI rules buddy for game night.",
   icons: {
-    icon: "/circular-logo.png",
-    shortcut: "/circular-logo.png",
-    apple: "/circular-logo.png",
+    icon: [{ url: "/circular-logo.png?v=3", type: "image/png", sizes: "512x512" }],
+    shortcut: [{ url: "/circular-logo.png?v=3", type: "image/png" }],
+    apple: [{ url: "/circular-logo.png?v=3", type: "image/png", sizes: "180x180" }],
   },
 };
 

@@ -39,6 +39,7 @@ export function HomeDashboard() {
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const pickerRef = useRef<GamePickerComboboxHandle | null>(null);
   const sendingLockRef = useRef(false);
+  const createdSessionIdRef = useRef<string | null>(null);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -141,7 +142,11 @@ export function HomeDashboard() {
     setDraftHouseRulesSummary("Standard rules");
   }, [selectedGameId]);
 
-  const canSend = (draftText.trim().length > 0 || Boolean(attachedImageFile)) && Boolean(selectedGameId);
+  const canSend =
+    (draftText.trim().length > 0 || Boolean(attachedImageFile)) &&
+    Boolean(selectedGameId) &&
+    !isSending &&
+    !createdSessionIdRef.current;
 
   useEffect(() => {
     return () => {
@@ -192,6 +197,10 @@ export function HomeDashboard() {
   }
 
   async function handleSend() {
+    if (createdSessionIdRef.current) {
+      router.push(`/session/${createdSessionIdRef.current}`);
+      return;
+    }
     if (sendingLockRef.current || isSending) return;
     const trimmedMessage = draftText.trim();
     if (!trimmedMessage && !attachedImageFile) return;
@@ -221,6 +230,7 @@ export function HomeDashboard() {
       if (!sessionRes.ok || !sessionData.session?.id) {
         throw new Error(sessionData.error ?? "Failed to start a session");
       }
+      createdSessionIdRef.current = sessionData.session.id;
 
       const chatRes = pendingImageFile
         ? await fetch("/api/chat", {
@@ -251,6 +261,11 @@ export function HomeDashboard() {
       clearAttachedImage();
       router.push(`/session/${sessionData.session.id}`);
     } catch (error) {
+      if (createdSessionIdRef.current) {
+        toast.error("Session started. Opening chat...");
+        router.push(`/session/${createdSessionIdRef.current}`);
+        return;
+      }
       toast.error(normalizeError(error, "Failed to start session"));
     } finally {
       sendingLockRef.current = false;
