@@ -9,15 +9,13 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { FeedbackSheet } from "@/components/chat/feedback-sheet";
+import { validateChatImageFile } from "@/lib/chat/image-attachment";
 import { getGameDefinition, getStandardRulesSummary } from "@/lib/games/registry";
 import { resolveSessionTitle } from "@/lib/sessions/title";
 import { MessageRecord, SessionRecord } from "@/types/db";
 import { toast } from "sonner";
 
 type Message = Pick<MessageRecord, "id" | "role" | "content" | "created_at" | "image_url" | "image_mime">;
-
-const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-const MAX_IMAGE_SIZE = 8 * 1024 * 1024;
 
 export function ChatSessionClient({
   initialSession,
@@ -61,6 +59,7 @@ export function ChatSessionClient({
     }
     return parseSummaryBullets(raw);
   }, [initialSession.game_id, initialSession.house_rules_summary]);
+  const rulesModeLabel = (initialSession.house_rules_mode ?? "standard") === "custom" ? "Custom" : "Standard";
   useEffect(() => {
     return () => {
       if (attachedImagePreviewUrl?.startsWith("blob:")) {
@@ -145,12 +144,9 @@ export function ChatSessionClient({
 
   function handleFileSelection(file?: File) {
     if (!file) return;
-    if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
-      toast.error("Unsupported image type. Use JPG, PNG, or WEBP.");
-      return;
-    }
-    if (file.size > MAX_IMAGE_SIZE) {
-      toast.error("Image is too large. Max size is 8MB.");
+    const validationError = validateChatImageFile(file);
+    if (validationError) {
+      toast.error(validationError);
       return;
     }
     if (attachedImagePreviewUrl?.startsWith("blob:")) {
@@ -265,8 +261,12 @@ export function ChatSessionClient({
         <div className="flex items-center justify-between">
           <h1 className="truncate pr-3 text-lg font-semibold">{sessionTitle}</h1>
           <div className="flex items-center gap-1">
-            <Link href={`/setup/${initialSession.game_id}`} className="text-sm text-[#66d5c8] underline underline-offset-4">
-              Edit house rules
+            <Link
+              href={`/setup/${initialSession.game_id}`}
+              className="rounded-md border border-white/15 bg-white/[0.04] px-2 py-1 text-xs text-white/80 hover:bg-white/[0.08]"
+              title="Using standard rules. You can customize house rules anytime."
+            >
+              Rules: {rulesModeLabel}
             </Link>
             <Button
               type="button"

@@ -18,5 +18,5 @@ export function Greeting() {
 
   const greeting = useMemo(() => getGreetingForHour(now.getHours()), [now]);
 
-  return <p className="mb-2 text-sm text-white/60">{greeting}</p>;
+  return <p className="pt-5 text-2xl font-semibold leading-snug text-white/85 sm:pt-7 sm:text-3xl">{greeting}</p>;
 }

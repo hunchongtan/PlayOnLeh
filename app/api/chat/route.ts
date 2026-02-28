@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { generateChatAnswer } from "@/lib/openai/tasks";
+import { generateChatAnswer, generateSessionTitleFromExchange } from "@/lib/openai/tasks";
 import { getGameDefinition } from "@/lib/games/registry";
-import { createMessage, getMessagesForSession, getSessionById, hasUserMessages, updateSessionTitle, uploadChatImage } from "@/lib/supabase/dal";
-import { buildSessionTitleFromFirstPrompt, resolveSessionTitle } from "@/lib/sessions/title";
+import { createMessage, getMessagesForSession, getSessionById, updateSessionTitleIfDefault, uploadChatImage } from "@/lib/supabase/dal";
+import { buildDefaultSessionTitle, resolveSessionTitle } from "@/lib/sessions/title";
 
 const requestSchema = z.object({
   sessionId: z.string().uuid(),
@@ -66,7 +66,6 @@ export async function POST(req: Request) {
     }
 
     const history = await getMessagesForSession(sessionId);
-    const hadUserMessages = await hasUserMessages(sessionId);
     const userMessage = await createMessage({
       sessionId,
       role: "user",
@@ -75,10 +74,6 @@ export async function POST(req: Request) {
       imageMime,
     });
     let sessionTitle = resolveSessionTitle({ title: session.title, gameName: game.name });
-    if (!hadUserMessages) {
-      sessionTitle = buildSessionTitleFromFirstPrompt(message);
-      await updateSessionTitle(sessionId, sessionTitle);
-    }
 
     const answer = await generateChatAnswer({
       gameId: session.game_id,
@@ -100,6 +95,24 @@ export async function POST(req: Request) {
       promptTokens: answer.usage?.input_tokens,
       completionTokens: answer.usage?.output_tokens,
     });
+
+    const firstExchange =
+      history.filter((item) => item.role === "user" || item.role === "assistant").length === 0;
+    const expectedDefaultTitle = buildDefaultSessionTitle(game.name);
+    const currentTitle = (session.title ?? "").trim() || expectedDefaultTitle;
+    const canGenerateAiTitle = firstExchange && (session.title_source ?? "default") === "default" && currentTitle === expectedDefaultTitle;
+
+    if (canGenerateAiTitle) {
+      const aiTitle = await generateSessionTitleFromExchange({
+        gameName: game.name,
+        firstUserMessage: message,
+        firstAssistantMessage: answer.text,
+      });
+      const updated = await updateSessionTitleIfDefault(sessionId, aiTitle, "ai");
+      if (updated) {
+        sessionTitle = aiTitle;
+      }
+    }
 
     return NextResponse.json({
       assistantMessage,

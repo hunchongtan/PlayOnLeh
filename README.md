@@ -150,6 +150,11 @@ Manual smoke checks:
 5. Feedback modal submits and thumb state persists after refresh
 
 ## Troubleshooting
+### Session creation fails with `house_rules_mode` / schema cache errors
+- Re-run `supabase/schema.sql` so `sessions.house_rules_mode` exists with default `standard`.
+- Restart the Supabase project or wait briefly for PostgREST schema cache refresh.
+- The API has a temporary legacy fallback, but canonical schema should still be applied.
+
 ### `SUPABASE_SERVICE_ROLE_KEY` errors
 - Ensure key is present in `.env` and only used on server files.
 

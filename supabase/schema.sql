@@ -29,13 +29,35 @@ end$$;
 create table if not exists sessions (
   id uuid primary key default gen_random_uuid(),
   game_id game_key not null default 'uno',
-  house_rules_mode text not null default 'custom' check (house_rules_mode in ('standard','custom')),
+  house_rules_mode text not null default 'standard' check (house_rules_mode in ('standard','custom')),
   house_rules_json jsonb not null default '{}'::jsonb,
   house_rules_summary text not null default '',
   title text,
+  title_source text not null default 'default' check (title_source in ('default', 'ai', 'user')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table sessions add column if not exists house_rules_mode text;
+alter table sessions add column if not exists house_rules_json jsonb default '{}'::jsonb;
+alter table sessions add column if not exists house_rules_summary text;
+alter table sessions alter column house_rules_mode set default 'standard';
+update sessions set house_rules_mode = 'standard' where house_rules_mode is null;
+alter table sessions alter column house_rules_mode set not null;
+alter table sessions drop constraint if exists sessions_house_rules_mode_check;
+alter table sessions add constraint sessions_house_rules_mode_check check (house_rules_mode in ('standard', 'custom'));
+alter table sessions alter column house_rules_json set default '{}'::jsonb;
+update sessions set house_rules_json = '{}'::jsonb where house_rules_json is null;
+alter table sessions alter column house_rules_json set not null;
+alter table sessions alter column house_rules_summary set default 'Standard rules';
+update sessions set house_rules_summary = 'Standard rules' where house_rules_summary is null or btrim(house_rules_summary) = '';
+alter table sessions alter column house_rules_summary set not null;
+alter table sessions add column if not exists title_source text;
+alter table sessions alter column title_source set default 'default';
+update sessions set title_source = 'default' where title_source is null or btrim(title_source) = '';
+alter table sessions alter column title_source set not null;
+alter table sessions drop constraint if exists sessions_title_source_check;
+alter table sessions add constraint sessions_title_source_check check (title_source in ('default', 'ai', 'user'));
 
 create table if not exists messages (
   id uuid primary key default gen_random_uuid(),

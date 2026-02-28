@@ -1,8 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { MessageSquareText, SlidersHorizontal, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -19,13 +19,13 @@ export function SessionCard({
   href?: string;
   onDelete?: (sessionId: string) => void;
 }) {
+  const router = useRouter();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const targetHref = href ?? `/session/${session.id}`;
-  const preview = compactPreview(session.first_user_message);
   const gameName = session.game_name ?? prettyGameName(session.game_id);
   const title = resolveSessionTitle({ title: session.title, gameName });
-  const showHouseRulesHint = Boolean(session.house_rules_summary?.trim());
+  const rulesModeLabel = session.house_rules_mode === "custom" ? "Custom Rules" : "Standard Rules";
 
   async function handleDelete() {
     if (isDeleting) return;
@@ -49,11 +49,20 @@ export function SessionCard({
   return (
     <>
       <div
-        className="group rounded-xl border border-white/10 bg-[#181a20] p-3 transition hover:bg-[#1d2030]"
-        title={showHouseRulesHint ? session.house_rules_summary : undefined}
+        role="button"
+        tabIndex={0}
+        onClick={() => router.push(targetHref)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            router.push(targetHref);
+          }
+        }}
+        className="group cursor-pointer rounded-xl border border-white/10 bg-[#181a20] p-3 transition hover:bg-[#1d2030] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f2aa4c]/60"
+        title={session.house_rules_summary?.trim() || undefined}
       >
         <div className="flex items-start gap-3">
-          <Link href={targetHref} className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-[#232838]">
+          <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-[#232838]">
             {session.cover_image_url ? (
               <Image src={session.cover_image_url} alt={`${title} cover`} fill className="object-cover object-center" />
             ) : (
@@ -61,13 +70,13 @@ export function SessionCard({
                 <MessageSquareText className="h-4 w-4 text-white/70" />
               </div>
             )}
-          </Link>
+          </div>
 
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-3">
-              <Link href={targetHref} className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-white">{title}</p>
-              </Link>
+              </div>
               <div className="flex items-center gap-1">
                 <span className="shrink-0 text-[11px] text-white/50">{relativeTime(session.updated_at)}</span>
                 <Button
@@ -76,23 +85,19 @@ export function SessionCard({
                   size="icon"
                   aria-label="Delete session"
                   className="h-8 w-8 text-white/50 opacity-70 transition hover:bg-white/10 hover:text-white md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
-                  onClick={() => setConfirmOpen(true)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setConfirmOpen(true);
+                  }}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
             </div>
-
-            <Link href={targetHref} className="mt-1 block">
-              <p className="line-clamp-1 text-sm text-white/68">{preview}</p>
-            </Link>
-
-            {showHouseRulesHint ? (
-              <div className="mt-1.5 inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[11px] text-white/60">
-                <SlidersHorizontal className="h-3 w-3" />
-                <span>House rules configured</span>
-              </div>
-            ) : null}
+            <div className="mt-1.5 inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[11px] text-white/60">
+              <SlidersHorizontal className="h-3 w-3" />
+              <span>{rulesModeLabel}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -124,18 +129,6 @@ function prettyGameName(gameId: string) {
   if (gameId === "uno-flip") return "Uno Flip";
   if (gameId === "mahjong") return "Mahjong";
   return gameId;
-}
-
-function compactPreview(text?: string | null) {
-  const normalized = (text ?? "").replace(/\s+/g, " ").trim();
-  if (!normalized) {
-    return "New session";
-  }
-  const limit = 100;
-  if (normalized.length <= limit) {
-    return normalized;
-  }
-  return `${normalized.slice(0, limit - 1).trimEnd()}...`;
 }
 
 function relativeTime(iso: string) {

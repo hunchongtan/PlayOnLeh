@@ -17,6 +17,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [scanError, setScanError] = useState<string | null>(null);
   const [scanInfo, setScanInfo] = useState<string | null>(null);
   const [scanCandidates, setScanCandidates] = useState<ScanCandidate[]>([]);
+  const [scanPreviewUrl, setScanPreviewUrl] = useState<string | null>(null);
   const scanSelectHandlerRef = useRef<((gameId: string) => void) | null>(null);
 
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
@@ -32,6 +33,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     setScanError(null);
     setScanInfo(null);
     setScanCandidates([]);
+    if (scanPreviewUrl) {
+      URL.revokeObjectURL(scanPreviewUrl);
+    }
+    setScanPreviewUrl(URL.createObjectURL(file));
 
     const formData = new FormData();
     formData.set("image", file);
@@ -67,6 +72,11 @@ export function AppShell({ children }: { children: ReactNode }) {
     setScanOpen(true);
     setScanError(null);
     setScanInfo(null);
+    setScanCandidates([]);
+    if (scanPreviewUrl) {
+      URL.revokeObjectURL(scanPreviewUrl);
+    }
+    setScanPreviewUrl(null);
   }
 
   return (
@@ -116,14 +126,23 @@ export function AppShell({ children }: { children: ReactNode }) {
           setScanOpen(open);
           if (!open) {
             scanSelectHandlerRef.current = null;
+            setScanCandidates([]);
+            setScanError(null);
+            setScanInfo(null);
+            if (scanPreviewUrl) {
+              URL.revokeObjectURL(scanPreviewUrl);
+            }
+            setScanPreviewUrl(null);
           }
         }}
         isScanning={scanLoading}
         error={scanError}
         info={scanInfo}
         candidates={scanCandidates}
+        previewUrl={scanPreviewUrl}
         onCameraPick={() => cameraInputRef.current?.click()}
         onUploadPick={() => uploadInputRef.current?.click()}
+        onRetake={() => cameraInputRef.current?.click()}
         onCandidateSelect={(gameId) => {
           setScanOpen(false);
           const customSelectHandler = scanSelectHandlerRef.current;

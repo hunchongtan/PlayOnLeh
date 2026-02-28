@@ -10,6 +10,14 @@ type CreateSessionInput = {
   title?: string;
 };
 
+type CreateSessionFallbackInput = {
+  gameId: GameId;
+  houseRules: HouseRules | Record<string, never>;
+  houseRulesSummary: string;
+  title?: string;
+  modeForResponse: "standard" | "custom";
+};
+
 export async function createSession(input: CreateSessionInput): Promise<SessionRecord> {
   const supabase = getSupabaseAdminClient();
   const { data, error } = await supabase
@@ -29,6 +37,37 @@ export async function createSession(input: CreateSessionInput): Promise<SessionR
   }
 
   return data as SessionRecord;
+}
+
+export async function createSessionWithoutMode(input: CreateSessionFallbackInput): Promise<SessionRecord> {
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("sessions")
+    .insert({
+      game_id: input.gameId,
+      house_rules_json: input.houseRules,
+      house_rules_summary: input.houseRulesSummary,
+      title: input.title ?? null,
+    })
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    throw new Error(`Failed to create session (fallback): ${error?.message ?? "unknown"}`);
+  }
+
+  const row = data as Partial<SessionRecord> & Record<string, unknown>;
+  return {
+    id: String(row.id),
+    game_id: row.game_id as GameId,
+    house_rules_mode: (row.house_rules_mode as "standard" | "custom" | undefined) ?? input.modeForResponse,
+    house_rules_json: (row.house_rules_json as HouseRules | Record<string, never>) ?? {},
+    house_rules_summary: String(row.house_rules_summary ?? input.houseRulesSummary),
+    title: (row.title as string | null | undefined) ?? null,
+    title_source: (row.title_source as "default" | "ai" | "user" | undefined) ?? "default",
+    created_at: String(row.created_at),
+    updated_at: String(row.updated_at),
+  };
 }
 
 export async function getRecentSessions(limit = 10, gameId?: GameId): Promise<SessionListItem[]> {
@@ -142,21 +181,6 @@ export async function getMessagesForSession(sessionId: string): Promise<MessageR
   return (data ?? []) as MessageRecord[];
 }
 
-export async function hasUserMessages(sessionId: string): Promise<boolean> {
-  const supabase = getSupabaseAdminClient();
-  const { count, error } = await supabase
-    .from("messages")
-    .select("id", { count: "exact", head: true })
-    .eq("session_id", sessionId)
-    .eq("role", "user");
-
-  if (error) {
-    throw new Error(`Failed to check user messages: ${error.message}`);
-  }
-
-  return (count ?? 0) > 0;
-}
-
 export async function updateSessionTitle(sessionId: string, title: string): Promise<void> {
   const supabase = getSupabaseAdminClient();
   const { error } = await supabase.from("sessions").update({ title }).eq("id", sessionId);
@@ -164,6 +188,28 @@ export async function updateSessionTitle(sessionId: string, title: string): Prom
   if (error) {
     throw new Error(`Failed to update session title: ${error.message}`);
   }
+}
+
+export async function updateSessionTitleIfDefault(sessionId: string, title: string, source: "ai" | "user" = "ai"): Promise<boolean> {
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("sessions")
+    .update({ title, title_source: source })
+    .eq("id", sessionId)
+    .eq("title_source", "default")
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    const message = error.message || "";
+    if (/title_source|schema cache|column/i.test(message)) {
+      await updateSessionTitle(sessionId, title);
+      return true;
+    }
+    throw new Error(`Failed to update session title: ${error.message}`);
+  }
+
+  return Boolean(data);
 }
 
 export async function createMessage(params: {

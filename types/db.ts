@@ -38,10 +38,11 @@ export type HouseRules = UnoHouseRules | UnoFlipHouseRules | MahjongHouseRules;
 export type SessionRecord = {
   id: string;
   game_id: GameId;
-  house_rules_json: HouseRules;
+  house_rules_json: HouseRules | Record<string, never>;
   house_rules_summary: string;
   house_rules_mode: "standard" | "custom";
   title: string | null;
+  title_source: "default" | "ai" | "user";
   created_at: string;
   updated_at: string;
 };

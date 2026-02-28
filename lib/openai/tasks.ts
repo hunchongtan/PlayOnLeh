@@ -114,6 +114,52 @@ export async function generateChatAnswer(params: {
   };
 }
 
+export async function generateSessionTitleFromExchange(params: {
+  gameName: string;
+  firstUserMessage: string;
+  firstAssistantMessage: string;
+}) {
+  const client = getOpenAIClient();
+  const response = await client.responses.create({
+    model: "gpt-4.1-mini",
+    temperature: 0.2,
+    input: [
+      {
+        role: "system",
+        content: [
+          {
+            type: "input_text",
+            text: [
+              "Generate a concise chat title from the first user/assistant exchange.",
+              "Rules:",
+              "- 3 to 7 words.",
+              "- Descriptive statement, not a question.",
+              "- Return only the title text.",
+              "- No quotes.",
+              "- No trailing punctuation.",
+            ].join("\n"),
+          },
+        ],
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: [
+              `Game: ${params.gameName}`,
+              `First user message: ${params.firstUserMessage}`,
+              `First assistant message: ${params.firstAssistantMessage}`,
+            ].join("\n"),
+          },
+        ],
+      },
+    ],
+  });
+
+  return sanitizeSessionTitle(response.output_text?.trim() || `${params.gameName} Rules Discussion`);
+}
+
 export async function generateRulesSummary(params: { gameId: GameId; gameName: string }) {
   const queryEmbedding = await embedText(
     `${params.gameName} setup turn flow special cards winning conditions penalties common rules questions`
@@ -250,4 +296,20 @@ function sanitizeGeneratedReply(text: string) {
     .replace(/https?:\/\/\S+/gi, "")
     .replace(/\s{2,}/g, " ")
     .trim();
+}
+
+function sanitizeSessionTitle(raw: string) {
+  const cleaned = raw
+    .replace(/^["'`]+|["'`]+$/g, "")
+    .replace(/[.?!,:;]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const words = cleaned.split(" ").filter(Boolean);
+  if (!words.length) return "Game Rules Discussion";
+
+  const capped = words.slice(0, 7).join(" ");
+  const minWords = capped.split(" ").filter(Boolean).length;
+  if (minWords >= 3) return capped;
+  return `${capped} Discussion`.trim();
 }

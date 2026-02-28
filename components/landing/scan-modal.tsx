@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+import { useEffect, useRef } from "react";
 import { Camera, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,8 +25,10 @@ type ScanModalProps = {
   error: string | null;
   info: string | null;
   candidates: ScanCandidate[];
+  previewUrl: string | null;
   onCameraPick: () => void;
   onUploadPick: () => void;
+  onRetake: () => void;
   onCandidateSelect: (gameId: string) => void;
   onClearResults: () => void;
 };
@@ -36,41 +40,52 @@ export function ScanModal({
   error,
   info,
   candidates,
+  previewUrl,
   onCameraPick,
   onUploadPick,
+  onRetake,
   onCandidateSelect,
   onClearResults,
 }: ScanModalProps) {
+  const didAutoOpenRef = useRef(false);
+
+  useEffect(() => {
+    if (!open) {
+      didAutoOpenRef.current = false;
+      return;
+    }
+
+    if (!didAutoOpenRef.current) {
+      didAutoOpenRef.current = true;
+      onCameraPick();
+    }
+  }, [open, onCameraPick]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="border-white/10 bg-[#131b30] text-white sm:max-w-lg">
+      <DialogContent className="border-white/10 bg-[#131b30] text-white sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Scan Game</DialogTitle>
-          <DialogDescription className="text-white/70">
-            Capture a box photo or upload an image to find matching games.
-          </DialogDescription>
+          <DialogDescription className="text-white/70">Capture a game box photo.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Button
-              type="button"
-              className="h-11 bg-[#f2aa4c] text-[#121212] hover:bg-[#f6ba67]"
-              onClick={onCameraPick}
-              disabled={isScanning}
-            >
-              <Camera className="mr-2 h-4 w-4" />
-              Use camera
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-11 border-white/20 bg-white/5 text-white hover:bg-white/10"
-              onClick={onUploadPick}
-              disabled={isScanning}
-            >
+          {previewUrl ? (
+            <div className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]">
+              <div className="relative aspect-video w-full">
+                <Image src={previewUrl} alt="Captured game box" fill className="object-cover object-center" />
+              </div>
+            </div>
+          ) : null}
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" className="h-9 border-white/20 bg-white/5 text-white hover:bg-white/10" onClick={onUploadPick} disabled={isScanning}>
               <Upload className="mr-2 h-4 w-4" />
-              Upload image
+              Choose existing photo
+            </Button>
+            <Button type="button" variant="ghost" className="h-9 text-white/80 hover:bg-white/10 hover:text-white" onClick={onRetake} disabled={isScanning}>
+              <Camera className="mr-2 h-4 w-4" />
+              Retake
             </Button>
           </div>
 

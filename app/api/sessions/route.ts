@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createSession, getRecentSessions } from "@/lib/supabase/dal";
-import { getGameDefinition, getHouseRuleSummary, getStandardRulesSummary } from "@/lib/games/registry";
+import { createSession, createSessionWithoutMode, getRecentSessions } from "@/lib/supabase/dal";
+import { getGameDefinition, getHouseRuleSummary } from "@/lib/games/registry";
 import { buildDefaultSessionTitle } from "@/lib/sessions/title";
 import { houseRulesSchema } from "@/types/db";
 
 const createSessionSchema = z.object({
   gameId: z.enum(["uno", "uno-flip", "mahjong"]),
-  houseRulesMode: z.enum(["standard", "custom"]),
+  houseRulesMode: z.enum(["standard", "custom"]).default("standard"),
   houseRules: houseRulesSchema.optional(),
   houseRulesSummary: z.string().max(4000).optional(),
   title: z.string().max(100).optional(),
@@ -47,19 +47,45 @@ export async function POST(req: Request) {
 
     const isStandard = parsed.data.houseRulesMode === "standard";
     const summary = isStandard
-      ? getStandardRulesSummary(parsed.data.gameId).summary
+      ? parsed.data.houseRulesSummary?.trim() || "Standard rules"
       : parsed.data.houseRulesSummary ?? getHouseRuleSummary(parsed.data.gameId, parsed.data.houseRules ?? {}).summary;
     const game = getGameDefinition(parsed.data.gameId);
     const title = parsed.data.title ?? buildDefaultSessionTitle(game?.name ?? parsed.data.gameId);
-    const session = await createSession({
+    const payload = {
       gameId: parsed.data.gameId,
       houseRulesMode: parsed.data.houseRulesMode,
       houseRules: isStandard ? {} : parsed.data.houseRules ?? {},
       houseRulesSummary: summary,
       title,
-    });
+    } as const;
 
-    return NextResponse.json({ session }, { status: 201 });
+    try {
+      const session = await createSession(payload);
+      return NextResponse.json({ session }, { status: 201 });
+    } catch (createError) {
+      const message = createError instanceof Error ? createError.message : "Unknown session creation error";
+      const missingModeColumn = /house_rules_mode|schema cache|column/i.test(message);
+
+      if (!missingModeColumn) {
+        throw createError;
+      }
+
+      const fallbackSession = await createSessionWithoutMode({
+        gameId: payload.gameId,
+        houseRules: payload.houseRules,
+        houseRulesSummary: payload.houseRulesSummary,
+        title: payload.title,
+        modeForResponse: payload.houseRulesMode,
+      });
+
+      return NextResponse.json(
+        {
+          session: fallbackSession,
+          warning: "Session created with legacy schema fallback. Apply latest supabase/schema.sql and refresh Supabase schema cache.",
+        },
+        { status: 201 }
+      );
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

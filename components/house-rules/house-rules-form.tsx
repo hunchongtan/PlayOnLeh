@@ -13,15 +13,50 @@ import { GameDefinition } from "@/lib/games/types";
 import { HouseRules } from "@/types/db";
 import { toast } from "sonner";
 
-export function HouseRulesForm({ game }: { game: GameDefinition }) {
+export type HouseRulesDraftState = {
+  houseRulesMode: "standard" | "custom";
+  houseRulesJson: HouseRules | Record<string, never>;
+  houseRulesSummary: string;
+};
+
+export function HouseRulesForm({
+  game,
+  flow = "session",
+  initialDraft,
+  onSaveDraft,
+  onCancelDraft,
+}: {
+  game: GameDefinition;
+  flow?: "session" | "draft";
+  initialDraft?: HouseRulesDraftState;
+  onSaveDraft?: (draft: HouseRulesDraftState) => void;
+  onCancelDraft?: () => void;
+}) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<"standard" | "custom">("standard");
-  const [values, setValues] = useState<HouseRules>(getDefaultHouseRules(game.id) as HouseRules);
-  const [savedSummary, setSavedSummary] = useState(() => getStandardRulesSummary(game.id));
-  const [lastSavedJson, setLastSavedJson] = useState<string | null>(null);
+  const [mode, setMode] = useState<"standard" | "custom">(initialDraft?.houseRulesMode ?? "standard");
+  const [values, setValues] = useState<HouseRules>(
+    (initialDraft?.houseRulesJson && Object.keys(initialDraft.houseRulesJson).length
+      ? initialDraft.houseRulesJson
+      : getDefaultHouseRules(game.id)) as HouseRules
+  );
+  const [savedSummary, setSavedSummary] = useState(() => {
+    if (initialDraft?.houseRulesSummary?.trim()) {
+      const parsed = parseSummaryToBullets(initialDraft.houseRulesSummary);
+      return {
+        summary: initialDraft.houseRulesSummary,
+        bullets: parsed.length ? parsed : getStandardRulesSummary(game.id).bullets,
+      };
+    }
+    return getStandardRulesSummary(game.id);
+  });
+  const [lastSavedJson, setLastSavedJson] = useState<string | null>(
+    initialDraft?.houseRulesMode === "custom" && initialDraft.houseRulesJson
+      ? JSON.stringify(initialDraft.houseRulesJson)
+      : null
+  );
 
   const currentSummary = useMemo(() => {
     if (mode === "standard") {
@@ -52,6 +87,17 @@ export function HouseRulesForm({ game }: { game: GameDefinition }) {
 
   async function handleSubmit() {
     if (!canStart || isSaving) return;
+    const draftState: HouseRulesDraftState = {
+      houseRulesMode: mode,
+      houseRulesJson: mode === "custom" ? values : {},
+      houseRulesSummary: mode === "standard" ? "Standard rules" : summary.summary,
+    };
+
+    if (flow === "draft") {
+      onSaveDraft?.(draftState);
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
 
@@ -61,9 +107,9 @@ export function HouseRulesForm({ game }: { game: GameDefinition }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           gameId: game.id,
-          houseRulesMode: mode,
-          houseRules: mode === "custom" ? values : undefined,
-          houseRulesSummary: summary.summary,
+          houseRulesMode: draftState.houseRulesMode,
+          houseRules: draftState.houseRulesMode === "custom" ? draftState.houseRulesJson : undefined,
+          houseRulesSummary: draftState.houseRulesSummary,
         }),
       });
 
@@ -215,10 +261,24 @@ export function HouseRulesForm({ game }: { game: GameDefinition }) {
           <p className="mt-4 text-xs text-muted-foreground">Save your house rules to continue.</p>
         ) : null}
 
-        <Button onClick={handleSubmit} className="mt-6 w-full" disabled={isSubmitting || !canStart || isSaving}>
-          {isSubmitting ? "Starting Session..." : "Start Session"}
-        </Button>
+        <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
+          {flow === "draft" ? (
+            <Button type="button" variant="ghost" onClick={onCancelDraft}>
+              Cancel
+            </Button>
+          ) : null}
+          <Button onClick={handleSubmit} className={flow === "draft" ? "sm:min-w-40" : "w-full"} disabled={isSubmitting || !canStart || isSaving}>
+            {flow === "draft" ? (isSaving ? "Saving..." : "Save rules") : isSubmitting ? "Starting Session..." : "Start Session"}
+          </Button>
+        </div>
       </div>
     </div>
   );
+}
+
+function parseSummaryToBullets(rawSummary: string) {
+  return rawSummary
+    .split("\n")
+    .map((line) => line.replace(/^-+\s*/, "").trim())
+    .filter(Boolean);
 }
