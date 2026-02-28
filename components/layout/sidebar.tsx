@@ -139,7 +139,6 @@ export function Sidebar({ onScanGame, onNavigate }: SidebarProps) {
           <div className="grid h-8 w-8 place-items-center rounded-full bg-[#f2aa4c] text-xs font-semibold text-[#121212]">G</div>
           <div>
             <p className="text-sm font-medium text-white">Guest</p>
-            <p className="text-xs text-white/55">Local sessions only</p>
           </div>
         </div>
       </div>
