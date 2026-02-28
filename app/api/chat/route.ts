@@ -8,12 +8,14 @@ import { buildDefaultSessionTitle, resolveSessionTitle } from "@/lib/sessions/ti
 const requestSchema = z.object({
   sessionId: z.string().uuid(),
   message: z.string().min(1).max(2000),
+  useOnlineSources: z.boolean().optional(),
 });
 
 const formSchema = z.object({
   sessionId: z.string().uuid(),
   gameId: z.enum(["uno", "uno-flip", "mahjong"]).optional(),
   text: z.string().max(2000).optional(),
+  useOnlineSources: z.boolean().optional(),
 });
 
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -24,6 +26,7 @@ type ParsedChatRequest = {
   gameId?: "uno" | "uno-flip" | "mahjong";
   message: string;
   imageFile?: File;
+  useOnlineSources: boolean;
 };
 
 export async function POST(req: Request) {
@@ -33,7 +36,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: parsedRequest.error }, { status: 400 });
     }
 
-    const { sessionId, message, imageFile, gameId } = parsedRequest.value;
+    const { sessionId, message, imageFile, gameId, useOnlineSources } = parsedRequest.value;
     const session = await getSessionById(sessionId);
     if (!session) {
       return NextResponse.json({ error: "Session not found" }, { status: 404 });
@@ -85,13 +88,14 @@ export async function POST(req: Request) {
       history: history
         .filter((m) => m.role === "user" || m.role === "assistant")
         .map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+      useOnlineSources,
     });
 
     const assistantMessage = await createMessage({
       sessionId,
       role: "assistant",
       content: answer.text,
-      model: "gpt-4.1-mini",
+      model: "gpt-4.1",
       promptTokens: answer.usage?.input_tokens,
       completionTokens: answer.usage?.output_tokens,
     });
@@ -121,6 +125,10 @@ export async function POST(req: Request) {
       rag: {
         chunks: answer.chunks,
       },
+      online: {
+        used: answer.usedOnlineSources,
+        citations: answer.onlineCitations,
+      },
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
@@ -140,6 +148,7 @@ async function parseChatRequest(req: Request): Promise<{ ok: true; value: Parsed
       sessionId: typeof rawSessionId === "string" ? rawSessionId : undefined,
       gameId: rawGameId === "uno" || rawGameId === "uno-flip" || rawGameId === "mahjong" ? rawGameId : undefined,
       text: typeof rawText === "string" ? rawText : undefined,
+      useOnlineSources: formData.get("useOnlineSources") === "true",
     });
 
     if (!parsed.success) {
@@ -161,6 +170,7 @@ async function parseChatRequest(req: Request): Promise<{ ok: true; value: Parsed
         gameId: parsed.data.gameId,
         message: text || "What should I do next in this state?",
         imageFile,
+        useOnlineSources: parsed.data.useOnlineSources ?? false,
       },
     };
   }
@@ -177,6 +187,7 @@ async function parseChatRequest(req: Request): Promise<{ ok: true; value: Parsed
     value: {
       sessionId: parsed.data.sessionId,
       message: parsed.data.message,
+      useOnlineSources: parsed.data.useOnlineSources ?? false,
     },
   };
 }

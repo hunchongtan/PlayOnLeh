@@ -11,6 +11,7 @@ import { HouseRulesForm } from "@/components/house-rules/house-rules-form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { HomeGame, HomeRecentChat, HomeRecentGame } from "@/components/home/types";
 import { validateChatImageFile } from "@/lib/chat/image-attachment";
+import { readOnlineSourcesPreference } from "@/lib/client/preferences";
 import { getGameDefinition } from "@/lib/games/registry";
 import { GameId } from "@/lib/games/types";
 import { HouseRules } from "@/types/db";
@@ -56,6 +57,11 @@ export function HomeDashboard() {
   const [draftHouseRulesMode, setDraftHouseRulesMode] = useState<"standard" | "custom">("standard");
   const [draftHouseRulesJson, setDraftHouseRulesJson] = useState<HouseRules | Record<string, never>>({});
   const [draftHouseRulesSummary, setDraftHouseRulesSummary] = useState("Standard rules");
+  const [useOnlineSources, setUseOnlineSources] = useState(false);
+
+  useEffect(() => {
+    setUseOnlineSources(readOnlineSourcesPreference());
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -240,6 +246,7 @@ export function HomeDashboard() {
               formData.set("sessionId", sessionData.session.id);
               formData.set("gameId", selectedGameId);
               formData.set("text", trimmedMessage);
+              formData.set("useOnlineSources", useOnlineSources ? "true" : "false");
               formData.set("image", pendingImageFile);
               return formData;
             })(),
@@ -250,6 +257,7 @@ export function HomeDashboard() {
             body: JSON.stringify({
               sessionId: sessionData.session.id,
               message: effectiveMessage,
+              useOnlineSources,
             }),
           });
       const chatData = (await chatRes.json()) as ChatResponse & { error?: string };

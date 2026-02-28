@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { FeedbackSheet } from "@/components/chat/feedback-sheet";
 import { validateChatImageFile } from "@/lib/chat/image-attachment";
+import { readOnlineSourcesPreference } from "@/lib/client/preferences";
 import { getGameDefinition, getStandardRulesSummary } from "@/lib/games/registry";
 import { resolveSessionTitle } from "@/lib/sessions/title";
 import { MessageRecord, SessionRecord } from "@/types/db";
@@ -49,6 +50,7 @@ export function ChatSessionClient({
   } | null>(null);
   const [attachedImageFile, setAttachedImageFile] = useState<File | null>(null);
   const [attachedImagePreviewUrl, setAttachedImagePreviewUrl] = useState<string | null>(null);
+  const [useOnlineSources, setUseOnlineSources] = useState(false);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -60,6 +62,10 @@ export function ChatSessionClient({
     return parseSummaryBullets(raw);
   }, [initialSession.game_id, initialSession.house_rules_summary]);
   const rulesModeLabel = (initialSession.house_rules_mode ?? "standard") === "custom" ? "Custom" : "Standard";
+  useEffect(() => {
+    setUseOnlineSources(readOnlineSourcesPreference());
+  }, []);
+
   useEffect(() => {
     return () => {
       if (attachedImagePreviewUrl?.startsWith("blob:")) {
@@ -101,6 +107,7 @@ export function ChatSessionClient({
               formData.set("sessionId", initialSession.id);
               formData.set("gameId", initialSession.game_id);
               formData.set("text", text);
+              formData.set("useOnlineSources", useOnlineSources ? "true" : "false");
               formData.set("image", pendingImageFile);
               return formData;
             })(),
@@ -108,7 +115,7 @@ export function ChatSessionClient({
         : await fetch("/api/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ sessionId: initialSession.id, message: text }),
+            body: JSON.stringify({ sessionId: initialSession.id, message: text, useOnlineSources }),
           });
       const data = await res.json();
       if (!res.ok) {

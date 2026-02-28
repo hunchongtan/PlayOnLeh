@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { readOnlineSourcesPreference, writeOnlineSourcesPreference } from "@/lib/client/preferences";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +17,20 @@ import {
 export function SettingsPanel() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [useOnlineSources, setUseOnlineSources] = useState(false);
+
+  useEffect(() => {
+    setUseOnlineSources(readOnlineSourcesPreference());
+  }, []);
+
+  function toggleOnlineSources() {
+    setUseOnlineSources((prev) => {
+      const next = !prev;
+      writeOnlineSourcesPreference(next);
+      toast.success(next ? "Online-source fallback enabled" : "Online-source fallback disabled");
+      return next;
+    });
+  }
 
   async function resetSessions() {
     setLoading(true);
@@ -39,6 +54,32 @@ export function SettingsPanel() {
       <div>
         <h1 className="text-2xl font-semibold text-white">Settings</h1>
         <p className="mt-1 text-sm text-white/65">Guest mode only. No account settings yet.</p>
+      </div>
+
+      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-white">Use online sources when rulebook doesn&apos;t cover it (beta)</p>
+            <p className="mt-1 text-sm text-white/65">Rulebook stays as primary source of truth. Web search is only used as fallback.</p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={useOnlineSources}
+            onClick={toggleOnlineSources}
+            className={[
+              "relative h-7 w-12 rounded-full border transition",
+              useOnlineSources ? "border-[#f2aa4c] bg-[#f2aa4c]/40" : "border-white/20 bg-white/10",
+            ].join(" ")}
+          >
+            <span
+              className={[
+                "absolute top-0.5 h-5 w-5 rounded-full bg-white transition",
+                useOnlineSources ? "left-6" : "left-0.5",
+              ].join(" ")}
+            />
+          </button>
+        </div>
       </div>
 
       <div className="rounded-xl border border-red-300/30 bg-red-500/10 p-5">

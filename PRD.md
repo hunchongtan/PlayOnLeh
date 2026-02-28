@@ -192,9 +192,15 @@ The longer-term vision is to become the default "rules brain" at the table, even
 2. Assistant behaviour guidelines in the system prompt:
    - Prefer concise, step-by-step explanations.
    - Clearly distinguish between official rules and house rules when relevant.
-   - Keep user-facing replies conversational and do not mention chunk numbers/sources in output.
+   - Keep user-facing replies conversational and non-technical.
+   - Do not mention RAG, chunk numbers, retrieval internals, or source URLs in visible output.
+   - Do not force rigid section headers like "From rulebook" or "From online sources" unless explicitly requested by the user.
    - When context is insufficient or rules conflict, say "I'm not fully certain" rather than hallucinating.
-3. The backend calls the LLM API and returns the answer text plus retrieved chunk metadata to the frontend.
+3. Online fallback behavior (optional, Settings-controlled):
+   - Default OFF.
+   - If enabled and official rulebook context is insufficient, backend may run a web-search fallback.
+   - Final visible response should include at most one short generic note that online sources were checked; no exact citation links in chat text.
+4. The backend calls the LLM API and returns the answer text plus retrieved chunk metadata to the frontend.
 ### F5. Game Identification via Box Photo
 
 **Description:** Users can upload or capture a photo of a game box to automatically identify which supported game they are playing and jump into the setup flow.
@@ -259,6 +265,9 @@ The longer-term vision is to become the default "rules brain" at the table, even
    - Show profile footer as `Guest`.
    - No login/signup/auth flows.
 6. Settings includes a global reset action in v1 to clear sessions/messages/feedback (no per-user ownership in v1).
+7. Settings also includes an optional toggle:
+   - "Use online sources when rulebook doesn't cover it (beta)"
+   - Rulebook remains source of truth; online search is fallback only.
 ### F8. Game Detail + Rules Reader (v1 update)
 
 **Description:** Each supported game has a dedicated detail page and a rules page with an embedded official rulebook and AI summary.

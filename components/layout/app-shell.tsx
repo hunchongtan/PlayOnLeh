@@ -49,6 +49,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           scanSelectHandlerRef.current = null;
           if (customSelectHandler) {
             customSelectHandler(gameId);
+            return;
           }
           router.push(`/games/${gameId}`);
         }}

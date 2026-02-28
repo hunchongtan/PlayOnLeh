@@ -13,6 +13,7 @@ This project was built for the **OpenAI Codex Hackathon - Singapore**.
 - Rules reader (`/games/[gameId]/rules`) with AI summary + embedded official PDF
 - Session setup (`/setup/[gameId]`) using **Configure House Rules**
 - Chat sessions with persistent sessions/messages/feedback in Supabase
+- Optional **RAG + Web Search fallback** toggle in Settings (default off)
 - Message feedback (thumbs up/down modal) with persistent highlight state
 - Session title behavior:
   - default `New {Game} Session`
@@ -25,7 +26,7 @@ This project was built for the **OpenAI Codex Hackathon - Singapore**.
 - Tailwind CSS + shadcn/ui
 - Supabase Postgres + Storage + pgvector
 - OpenAI API
-  - `gpt-4.1-mini` (chat/vision/summary)
+  - `gpt-4.1` (chat/vision/summary/vision identify/title generation)
   - `text-embedding-3-small` (RAG embeddings)
 
 ## Prerequisites
@@ -126,7 +127,18 @@ npm run seed:game-rules -- --gameId=mahjong
 2. Extract + chunk text.
 3. Embed chunks into `rules_chunks` (pgvector).
 4. `/api/chat` embeds query, retrieves top chunks, and builds model prompt.
-5. Chat output is conversational (no chunk/source leakage).
+5. If Settings toggle is enabled and RAG context is weak/variant-like, `/api/chat` performs a web-search fallback.
+6. Assistant output stays conversational:
+   - No rigid source headers (e.g., no forced "From rulebook" sections)
+   - No chunk/source URL leakage or citation links in visible text
+   - If web fallback is used, assistant adds one short generic note about online sources
+
+### Web fallback toggle
+- Path: `/settings`
+- Toggle label: `Use online sources when rulebook doesn’t cover it (beta)`
+- Default: OFF
+- Storage: browser localStorage (guest-only, device-local)
+- No extra env var is required.
 
 ## Variant / Themed Deck Behavior
 - No extra setup fields are required.

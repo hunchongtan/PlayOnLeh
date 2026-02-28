@@ -25,9 +25,13 @@ export async function generateChatAnswer(params: {
   question: string;
   history: ChatTurn[];
   imageUrl?: string;
+  useOnlineSources?: boolean;
 }) {
   const queryEmbedding = await embedText(params.question);
   const chunks = await searchRulesChunks(params.gameId, queryEmbedding, 4, null);
+  const shouldUseOnlineSources =
+    Boolean(params.useOnlineSources) &&
+    (chunks.length === 0 || looksLikeVariantOrMissingRule(params.question, params.houseRulesSummary));
 
   const contextText = chunks.length
     ? chunks
@@ -42,8 +46,13 @@ export async function generateChatAnswer(params: {
       ? `House rules summary: ${params.houseRulesSummary}`
       : "Use official rules only. There are no house-rule overrides in this session.",
     "Use retrieved official rule context as the default source for official-rules claims.",
+    shouldUseOnlineSources
+      ? "Use web search only if the provided rule context is insufficient."
+      : "Do not use online sources in this run.",
     "Treat house_rules_summary as an allowed session-specific override source.",
-    "Never mention chunk numbers, source URLs, retrieval internals, or citations in the reply.",
+    "Never mention RAG, chunk numbers, source URLs, retrieval internals, or citations in the reply.",
+    "Use plain, non-technical language for casual players.",
+    "Do not use rigid section headers like 'From rulebook' or 'From online sources' unless explicitly asked.",
     "If an image is provided, briefly use visible state when relevant.",
     "If image details are insufficient or ambiguous, ask 1-2 clarifying questions instead of guessing.",
     params.gameId === "uno" || params.gameId === "uno-flip"
@@ -74,7 +83,7 @@ export async function generateChatAnswer(params: {
 
   const client = getOpenAIClient();
   const response = await client.responses.create({
-    model: "gpt-4.1-mini",
+    model: "gpt-4.1",
     temperature: 0.2,
     input: [
       {
@@ -105,11 +114,28 @@ export async function generateChatAnswer(params: {
     ],
   });
 
-  const text = sanitizeGeneratedReply(response.output_text?.trim() || `I'm not sure based on the available ${params.gameName} rules context.`);
+  const ragText = sanitizeGeneratedReply(response.output_text?.trim() || `I'm not sure based on the available ${params.gameName} rules context.`);
+  const onlineFallback = shouldUseOnlineSources
+    ? await generateWebFallbackAnswer({
+        gameName: params.gameName,
+        question: params.question,
+        houseRulesMode: params.houseRulesMode,
+        houseRulesSummary: params.houseRulesSummary,
+        history: params.history,
+        imageUrl: params.imageUrl,
+      })
+    : null;
+
+  const text = buildFinalAnswer({
+    ragText,
+    onlineFallback,
+  });
 
   return {
     text,
     chunks,
+    usedOnlineSources: Boolean(onlineFallback),
+    onlineCitations: onlineFallback?.citations ?? [],
     usage: response.usage,
   };
 }
@@ -121,7 +147,7 @@ export async function generateSessionTitleFromExchange(params: {
 }) {
   const client = getOpenAIClient();
   const response = await client.responses.create({
-    model: "gpt-4.1-mini",
+    model: "gpt-4.1",
     temperature: 0.2,
     input: [
       {
@@ -170,7 +196,7 @@ export async function generateRulesSummary(params: { gameId: GameId; gameName: s
 
   const client = getOpenAIClient();
   const response = await client.responses.create({
-    model: "gpt-4.1-mini",
+    model: "gpt-4.1",
     temperature: 0.1,
     input: [
       {
@@ -217,7 +243,7 @@ export async function identifyGameFromImage(params: { base64DataUrl: string }): 
   const client = getOpenAIClient();
 
   const response = await client.responses.create({
-    model: "gpt-4.1-mini",
+    model: "gpt-4.1",
     temperature: 0,
     text: {
       format: {
@@ -290,10 +316,136 @@ export function formatRagContext(chunks: RagChunk[]) {
 
 function sanitizeGeneratedReply(text: string) {
   return text
+    .replace(/^From\s+rulebook:\s*/gi, "")
+    .replace(/^From\s+online\s+sources:\s*/gi, "")
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/gi, "$1")
+    .replace(/\((https?:\/\/[^\s)]+)\)/gi, "")
+    .replace(/\(\[[^\]]+\]\([^)]+\)\)/gi, "")
+    .replace(/\(\s*[a-z0-9.-]+\.[a-z]{2,}[^\)]*\)/gi, "")
     .replace(/\[[^\]]*chunk\s*\d+\]/gi, "")
     .replace(/\[?\s*chunk\s*\d+\s*\]?/gi, "")
     .replace(/\(\s*chunk\s*\d+\s*\)/gi, "")
     .replace(/https?:\/\/\S+/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function looksLikeVariantOrMissingRule(question: string, houseRulesSummary: string) {
+  const combined = `${question} ${houseRulesSummary}`.toLowerCase();
+  return /(variant|themed|special card|promo|expansion|custom card|spy|anya|not in rules|not in rulebook)/i.test(combined);
+}
+
+async function generateWebFallbackAnswer(params: {
+  gameName: string;
+  question: string;
+  houseRulesMode: "standard" | "custom";
+  houseRulesSummary: string;
+  history: ChatTurn[];
+  imageUrl?: string;
+}) {
+  const client = getOpenAIClient();
+  const historyText = params.history
+    .slice(-8)
+    .map((turn) => `${turn.role.toUpperCase()}: ${turn.content}`)
+    .join("\n");
+
+  const response = await client.responses.create({
+    model: "gpt-4.1",
+    temperature: 0.2,
+    tools: [{ type: "web_search_preview" }],
+    input: [
+      {
+        role: "system",
+        content: [
+          {
+            type: "input_text",
+            text: [
+              `You are a concise web researcher for ${params.gameName} rules questions.`,
+              "Use web search results to provide a short fallback answer (max 4 sentences).",
+              "Prioritize official publisher/rulebook sources when possible.",
+              params.houseRulesMode === "custom"
+                ? `House rules summary: ${params.houseRulesSummary}`
+                : "No house-rule overrides.",
+              "Keep output conversational, short, and non-technical.",
+              "Do not include links, source names, citations, or bracketed references.",
+              "Do not use wording like 'rulebook context'. Say 'the rules I have' instead.",
+            ].join("\n"),
+          },
+        ],
+      },
+      {
+        role: "user",
+        content: params.imageUrl
+          ? [
+              {
+                type: "input_text",
+                text: `History:\n${historyText || "(none)"}\n\nQuestion: ${params.question}`,
+              },
+              {
+                type: "input_image",
+                image_url: params.imageUrl,
+                detail: "auto",
+              },
+            ]
+          : [
+              {
+                type: "input_text",
+                text: `History:\n${historyText || "(none)"}\n\nQuestion: ${params.question}`,
+              },
+            ],
+      },
+    ],
+  });
+
+  const text = sanitizeGeneratedReply(response.output_text?.trim() || "I couldn't find reliable online sources to confirm this.");
+  const citations = extractUrlCitations(response);
+  return { text, citations };
+}
+
+function extractUrlCitations(response: unknown) {
+  const output = Array.isArray((response as { output?: unknown[] })?.output)
+    ? ((response as { output: Array<{ content?: Array<{ annotations?: Array<{ type?: string; url?: string; title?: string }> }> }> }).output)
+    : [];
+
+  const seen = new Set<string>();
+  const citations: Array<{ title: string; url: string }> = [];
+
+  for (const item of output) {
+    const content = Array.isArray(item.content) ? item.content : [];
+    for (const block of content) {
+      const annotations = Array.isArray(block.annotations) ? block.annotations : [];
+      for (const annotation of annotations) {
+        if (annotation?.type !== "url_citation") continue;
+        const url = annotation.url?.trim();
+        if (!url || seen.has(url)) continue;
+        seen.add(url);
+        citations.push({
+          title: annotation.title?.trim() || url,
+          url,
+        });
+        if (citations.length >= 3) return citations;
+      }
+    }
+  }
+
+  return citations;
+}
+
+function buildFinalAnswer(params: {
+  ragText: string;
+  onlineFallback: { text: string; citations: Array<{ title: string; url: string }> } | null;
+}) {
+  const base = sanitizeGeneratedReply(params.ragText).trim();
+
+  if (!params.onlineFallback) {
+    return base;
+  }
+
+  const note = "I also checked online sources, but there isn't a clear official answer there either.";
+
+  return [base, note]
+    .filter(Boolean)
+    .join(" ")
     .replace(/\s{2,}/g, " ")
     .trim();
 }
