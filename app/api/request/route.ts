@@ -158,6 +158,7 @@ export async function POST(req: Request) {
       ok: true,
       requestId: requestRecord.id,
       emailSent: !warnings.includes("Saved, but email not configured.") && !warnings.includes("Saved, but email delivery failed."),
+      warnings,
       warning: warnings.length ? warnings.join(" ") : null,
     });
   } catch (error) {

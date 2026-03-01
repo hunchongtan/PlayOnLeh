@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useMemo, useRef, useState } from "react";
 import { Camera, Paperclip, X } from "lucide-react";
@@ -128,15 +128,27 @@ export function RequestForm() {
         method: "POST",
         body: formData,
       });
-      const data = await res.json();
+      const data = (await res.json()) as {
+        error?: string;
+        warning?: string | null;
+        warnings?: string[];
+      };
       if (!res.ok) {
         throw new Error(data.error ?? "Failed to send request");
       }
 
-      if (data.warning) {
-        toast.success("Saved, but email not configured.");
+      const warnings = Array.isArray(data.warnings)
+        ? data.warnings.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+        : typeof data.warning === "string" && data.warning.trim()
+          ? [data.warning]
+          : [];
+
+      if (warnings.length > 0) {
+        for (const warning of warnings) {
+          toast.success(warning);
+        }
       } else {
-        toast.success("Sent — thanks!");
+        toast.success("Sent - thanks!");
       }
       resetForm();
     } catch (error) {
@@ -269,3 +281,4 @@ export function RequestForm() {
     </form>
   );
 }
+
