@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { GameId, MahjongHouseRules, UnoFlipHouseRules, UnoHouseRules } from "@/lib/games/types";
+import { DuneImperiumHouseRules, GameId, MahjongHouseRules, UnoFlipHouseRules, UnoHouseRules } from "@/lib/games/types";
 
 export const unoHouseRulesSchema = z.object({
   stackDrawTwo: z.boolean().default(false),
@@ -31,9 +31,20 @@ export const mahjongHouseRulesSchema = z.object({
   other_rules: z.string().default(""),
 });
 
-export const houseRulesSchema = z.union([unoHouseRulesSchema, unoFlipHouseRulesSchema, mahjongHouseRulesSchema]);
+export const duneImperiumHouseRulesSchema = z.object({
+  expansionVariant: z.enum(["base", "rise_of_ix", "immortality"]).default("base"),
+  soloMode: z.boolean().default(false),
+  otherRules: z.string().default(""),
+});
 
-export type HouseRules = UnoHouseRules | UnoFlipHouseRules | MahjongHouseRules;
+export const houseRulesSchema = z.union([
+  unoHouseRulesSchema,
+  unoFlipHouseRulesSchema,
+  mahjongHouseRulesSchema,
+  duneImperiumHouseRulesSchema,
+]);
+
+export type HouseRules = UnoHouseRules | UnoFlipHouseRules | MahjongHouseRules | DuneImperiumHouseRules;
 
 export type SessionRecord = {
   id: string;
@@ -98,4 +109,26 @@ export type GameRecord = {
   storage_bucket?: string | null;
   cover_object_path?: string | null;
   rules_pdf_object_path?: string | null;
+};
+
+export type RequestType = "feature" | "game" | "bug" | "other";
+
+export type RequestStatus = "new" | "triaged" | "closed";
+
+export type RequestRecord = {
+  id: string;
+  created_at: string;
+  type: RequestType;
+  title: string | null;
+  details: string;
+  page_url: string | null;
+  game_id: string | null;
+  session_id: string | null;
+  user_agent: string | null;
+  screenshot_url: string | null;
+  ai_subject: string | null;
+  ai_summary: string | null;
+  ai_tags: string[] | null;
+  status: RequestStatus;
+  ip_hash: string | null;
 };

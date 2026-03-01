@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import type { ComponentType } from "react";
-import { BookOpen, Clock3, PlusSquare, Settings } from "lucide-react";
+import { BookOpen, Clock3, MessageSquareDiff, PlusSquare, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScanGameTrigger } from "@/components/layout/scan-game-trigger";
 
@@ -49,6 +49,13 @@ const linkItems: LinkItem[] = [
     icon: Settings,
     section: "SETTINGS",
     match: (pathname) => pathname === "/settings",
+  },
+  {
+    label: "Request",
+    href: "/request",
+    icon: MessageSquareDiff,
+    section: "SETTINGS",
+    match: (pathname) => pathname === "/request",
   },
 ];
 

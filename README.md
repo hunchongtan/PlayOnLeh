@@ -1,7 +1,7 @@
-# PlayOnLeh
+﻿# PlayOnLeh
 
 PlayOnLeh is a dark-first tabletop rules assistant built for real game-night use.  
-Current supported games: **Uno**, **Uno Flip**, **Mahjong**.
+Current supported games: **Uno**, **Uno Flip**, **Mahjong**, **Dune: Imperium**.
 
 This project was built for the **OpenAI Codex Hackathon - Singapore**.  
 `PRD.md` is the product behavior source of truth.
@@ -13,6 +13,7 @@ This project was built for the **OpenAI Codex Hackathon - Singapore**.
 - Rules reader (`/games/[gameId]/rules`) with AI summary + embedded official PDF
 - Session setup (`/setup/[gameId]`) using **Configure House Rules**
 - Chat sessions with persistent sessions/messages/feedback in Supabase
+- Unified Request hub (`/request`) for Feature / Game / Bug / Other intake
 - Optional **RAG + Web Search fallback** toggle in Settings (default off)
 - Message feedback (thumbs up/down modal) with persistent highlight state
 - Session title behavior:
@@ -63,6 +64,8 @@ npm run dev
 - `NEXT_PUBLIC_SUPABASE_URL` (safe client-side)
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` (safe client-side)
 - `SUPABASE_SERVICE_ROLE_KEY` (server-only; never expose in browser)
+- `RESEND_API_KEY` (server-only, optional for request emails)
+- `FROM_EMAIL` (server-only, optional verified sender for request emails)
 
 ## Supabase Setup (Canonical)
 Use only:
@@ -75,15 +78,19 @@ Use only:
    - `Uno` (public)
    - `Uno-flip` (public)
    - `Mahjong` (public)
+   - `Dune` (public)
    - `chat-images` (public for MVP simplicity)
+   - `request-screenshots` (private)
 4. Upload game assets:
    - `Uno/uno-pic.jpg`, `Uno/uno-rules.pdf`
    - `Uno-flip/uno-flip-pic.jpg`, `Uno-flip/uno-flip-rules.pdf`
    - `Mahjong/mahjong-pic.jpg`, `Mahjong/mahjong-rules.pdf`
+   - `Dune/dune-pic.jpg`, `Dune/dune-rules.pdf`
 
 ### Bucket Policy (MVP-safe)
-- Keep all 4 buckets public in v1 (no auth).
+- Keep game asset buckets (`Uno`, `Uno-flip`, `Mahjong`, `Dune`) public.
 - `chat-images` public is acceptable for hackathon MVP; tighten with signed URLs + auth in production.
+- Keep `request-screenshots` private.
 
 ## Seed Rules Corpus
 Seed embeddings from official PDFs stored in Supabase Storage:
@@ -91,6 +98,7 @@ Seed embeddings from official PDFs stored in Supabase Storage:
 npm run seed:game-rules -- --gameId=uno
 npm run seed:game-rules -- --gameId=uno-flip
 npm run seed:game-rules -- --gameId=mahjong
+npm run seed:game-rules -- --gameId=dune-imperium
 ```
 
 ## Architecture Overview
@@ -104,11 +112,13 @@ npm run seed:game-rules -- --gameId=mahjong
 - `/setup/[gameId]` Configure House Rules
 - `/session/[sessionId]` Chat session
 - `/recent-chats`
+- `/request`
 - `/settings`
 
 ### API routes
 - `POST /api/chat`
 - `POST /api/identify-game`
+- `POST /api/request`
 - `POST /api/feedback`
 - `GET /api/games`
 - `GET /api/sessions`
@@ -135,7 +145,7 @@ npm run seed:game-rules -- --gameId=mahjong
 
 ### Web fallback toggle
 - Path: `/settings`
-- Toggle label: `Use online sources when rulebook doesn’t cover it (beta)`
+- Toggle label: `Use online sources when rulebook doesn't cover it (beta)`
 - Default: OFF
 - Storage: browser localStorage (guest-only, device-local)
 - No extra env var is required.
@@ -186,4 +196,22 @@ Manual smoke checks:
 - Confirm `chat-images` bucket exists (exact name, case-sensitive) in the same Supabase project as `NEXT_PUBLIC_SUPABASE_URL`.
 - For MVP, keep `chat-images` public.
 - Use JPG/PNG/WEBP under 8MB.
+
+### Request hub email not sending
+- Confirm `RESEND_API_KEY` and `FROM_EMAIL` are set in local/Vercel.
+- `FROM_EMAIL` must be a verified sender/domain in Resend.
+- If these are missing, requests are still saved and API returns a warning.
+
+### Request screenshots fail
+- Confirm private bucket `request-screenshots` exists (exact name, case-sensitive).
+- Uploads are server-side via `SUPABASE_SERVICE_ROLE_KEY`; no public bucket policy is needed.
+
+## Request Hub Local Test
+1. Open `/request`.
+2. Submit a Feature/Game/Bug/Other request with details.
+3. Optional: attach screenshot (camera or upload).
+4. Verify DB row in `requests`.
+5. If Resend env vars are configured, verify email receipt at `tanhunchong01@gmail.com`.
+
+
 

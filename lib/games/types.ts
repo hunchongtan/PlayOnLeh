@@ -1,4 +1,4 @@
-export type GameId = "uno" | "uno-flip" | "mahjong";
+export type GameId = "uno" | "uno-flip" | "mahjong" | "dune-imperium";
 
 export type HouseRuleFieldType = "checkbox" | "select" | "textarea" | "number";
 
@@ -61,4 +61,10 @@ export type MahjongHouseRules = {
   other_rules: string;
 };
 
-export type GameHouseRules = UnoHouseRules | UnoFlipHouseRules | MahjongHouseRules;
+export type DuneImperiumHouseRules = {
+  expansionVariant: "base" | "rise_of_ix" | "immortality";
+  soloMode: boolean;
+  otherRules: string;
+};
+
+export type GameHouseRules = UnoHouseRules | UnoFlipHouseRules | MahjongHouseRules | DuneImperiumHouseRules;

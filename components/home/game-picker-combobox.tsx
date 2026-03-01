@@ -12,7 +12,7 @@ export type GamePickerComboboxHandle = {
   focusAndOpen: () => void;
 };
 
-const SUPPORTED_GAME_IDS: GameId[] = ["uno", "uno-flip", "mahjong"];
+const SUPPORTED_GAME_IDS: GameId[] = ["uno", "uno-flip", "mahjong", "dune-imperium"];
 
 function isGameId(value: string): value is GameId {
   return SUPPORTED_GAME_IDS.includes(value as GameId);

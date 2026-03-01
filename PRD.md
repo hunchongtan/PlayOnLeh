@@ -1,4 +1,4 @@
-# PlayOnLeh – Product Requirements Document (PRD)
+﻿# PlayOnLeh - Product Requirements Document (PRD)
 
 ## 1. Product Overview
 
@@ -32,7 +32,8 @@ The longer-term vision is to become the default "rules brain" at the table, even
 1. Provide a **chat-based rules assistant** for a small set of games that can answer common rules questions accurately and concisely.
 2. Allow users to configure **per-game house rules** via a standardised form when creating a game chat.
 3. Enable **game identification from a box-cover photo**, then route users directly into the corresponding game + configuration flow.
-4. Capture structured **feedback on answers** (e.g., wrong/unclear) in a sidebar tied to messages.
+4. Capture structured **feedback on answers** (e.g., wrong/unclear) in a modal tied to messages.
+5. Support a unified **Request** intake flow (Feature / Game / Bug / Other) with AI triage summary and email alerting.
 
 ### Non-goals (v1)
 
@@ -44,19 +45,19 @@ The longer-term vision is to become the default "rules brain" at the table, even
 
 ## 3. Target Users & Personas
 
-### Persona 1 – The Game Host
+### Persona 1 - The Game Host
 
 - Organises game nights, owns multiple games, is usually the "rules person" in the group.
 - Pain: tired of re-explaining basic setup and edge cases; rulebook lookups interrupt flow.
-- Needs: quick, authoritative clarifications; ability to set and remember the group’s house rules per game.
+- Needs: quick, authoritative clarifications; ability to set and remember the group's house rules per game.
 
-### Persona 2 – The Casual Player
+### Persona 2 - The Casual Player
 
 - Joins game nights occasionally or is new to a specific game.
 - Pain: feels lost during setup or when rules get technical.
 - Needs: simple answers to "What happens now?" without reading the whole book.
 
-### Persona 3 – The Rules Geek
+### Persona 3 - The Rules Geek
 
 - Enjoys digging into corner cases and FAQs.
 - Pain: online forum posts and unofficial answers can be inconsistent.
@@ -67,7 +68,7 @@ The longer-term vision is to become the default "rules brain" at the table, even
 ## 4. Key Use Cases
 
 1. **Setup assistance**  
-   - "We’re playing Uno for 4 players – how do we set up and who goes first?"  
+   - "We're playing Uno for 4 players - how do we set up and who goes first?"  
    - User expects a short, clear checklist.
 
 2. **In-game resolution**  
@@ -78,14 +79,14 @@ The longer-term vision is to become the default "rules brain" at the table, even
    - User snaps a photo of a game box; system recognises it as Uno, automatically selects that game, and opens the house-rules form.
 
 4. **House-rules configuration and persistence**  
-   - When starting a new Uno session, the host sets toggles like "Stack +2s" and "7–0 rule" once and expects consistent answers under those constraints.
+   - When starting a new Uno session, the host sets toggles like "Stack +2s" and "7-0 rule" once and expects consistent answers under those constraints.
 
 5. **Feedback on incorrect answers**  
    - If an answer is wrong/unclear, the host taps thumbs-down, marks "Incorrect ruling" and adds a note. This is stored for offline review and future improvement.
 
 ***
 
-## 5. Scope – v1 Hackathon MVP
+## 5. Scope - v1 Hackathon MVP
 
 ### In-scope
 
@@ -137,24 +138,24 @@ The longer-term vision is to become the default "rules brain" at the table, even
 **Requirements:**
 
 1. For each game, define a schema of configurable parameters, e.g.:  
-   **Example – Uno**
+   **Example - Uno**
    - Stack Draw Two cards? [checkbox]
    - Stack Wild Draw Four cards? [checkbox]
-   - 7–0 rule (swap hands)? [checkbox]
+   - 7-0 rule (swap hands)? [checkbox]
    - Jump-in (play identical card out of turn)? [checkbox]
    - Victory condition: [dropdown: Standard 500 points / First to zero cards / Other]
    - Other house rules: [textarea]
 
-   **Example – Mahjong (roadmap)**
+   **Example - Mahjong (roadmap)**
    - Variant: [dropdown: Hong Kong / Riichi / Singapore / Other]
    - Minimum fan to win: [numeric]
    - Flowers/Seasons counted? [checkbox]
    - Other house rules: [textarea]
 
-2. The form is rendered dynamically based on the game’s schema.
+2. The form is rendered dynamically based on the game's schema.
 3. On submit, the selected values are stored as a JSON object associated with the session (and optionally persisted as default for this browser/device + game).
 4. The backend generates a **house-rules summary string** from the JSON, such as:
-   - "House rules: allow stacking Draw Two; disallow stacking Draw Four; enable 7–0 rule; jump-in allowed; other: no scoring, just first to empty hand wins."
+   - "House rules: allow stacking Draw Two; disallow stacking Draw Four; enable 7-0 rule; jump-in allowed; other: no scoring, just first to empty hand wins."
 5. This summary is injected into the system prompt for the LLM for all messages in this session.
 6. In the UI, the house-rules summary is displayed clearly as a short bullet-list text block so users know what is active.
 7. Standard vs Custom gating:
@@ -162,7 +163,7 @@ The longer-term vision is to become the default "rules brain" at the table, even
    - Custom mode requires explicit **Save house rules** before **Start Session** is enabled.
 7. The assistant is instructed to:
    - Respect these house rules as overrides where they diverge from official rules.
-   - Explicitly note when a house rule deviates from the official rule (e.g., "Under your house rules… Officially, the base rules say…").
+   - Explicitly note when a house rule deviates from the official rule (e.g., "Under your house rules... Officially, the base rules say...").
 
 ### F3. Chat Interface & Messaging
 
@@ -173,7 +174,7 @@ The longer-term vision is to become the default "rules brain" at the table, even
 1. Main layout: chat pane on the right (or main area on mobile), sidebar on the left with game info and house-rules summary.
 2. Each chat message shows:
    - User messages with timestamp.
-   - Assistant messages with text answer and optional reference to rules (e.g., "According to the official rules…").
+   - Assistant messages with text answer and optional reference to rules (e.g., "According to the official rules...").
 3. Input box supports short to medium-length natural-language questions.
 4. Hitting Enter (or clicking Send) submits the question; the UI shows a loading indicator while awaiting response.
 5. Messages are appended to session history; for hackathon, in-memory storage is acceptable.
@@ -212,13 +213,13 @@ The longer-term vision is to become the default "rules brain" at the table, even
    - User selects or captures an image (camera or file upload, depending on platform/browser).
 3. Backend (or client, depending on infra) sends the image to a vision-capable model and asks it to:
    - Read text (OCR) and logos on the box.
-   - Map the detected name to one of the small set of supported games (string matching over a predefined list, e.g., ["Uno", "Uno Flip", "Mahjong" in later phases]).
+   - Map the detected name to one of the small set of supported games (string matching over a predefined list, e.g., ["Uno", "Uno Flip", "Mahjong", "Dune: Imperium"]).
 4. If a match is found:
    - Show confirmation: "Detected game: Uno. Continue? [Yes/No]".
    - On Yes, auto-select Uno and open its house-rules configuration form.
 5. If no match or low confidence:
-   - Fall back to manual game selection with a friendly message ("Couldn’t confidently identify the game.").
-6. For hackathon, it is acceptable to support only a subset (e.g., Uno + Uno Flip) and assume relatively clean, frontal box images.
+   - Fall back to manual game selection with a friendly message ("Couldn't confidently identify the game.").
+6. For MVP, support current shipped games and assume relatively clean, frontal box images.
 
 ### F6. Feedback Sidebar & Message-level Feedback
 
@@ -244,11 +245,12 @@ The longer-term vision is to become the default "rules brain" at the table, even
 
 **Requirements:**
 
-1. Sidebar nav ships only these five items:
+1. Sidebar nav ships these core items:
    - New Session
    - Scan Game
    - Games Catalogue
    - Recent Chats
+   - Request
    - Settings
 2. Desktop:
    - Persistent left sidebar at fixed width (compact, non-hover expanding).
@@ -256,10 +258,11 @@ The longer-term vision is to become the default "rules brain" at the table, even
 3. Mobile:
    - Sidebar content appears in a slide-in sheet from a hamburger-triggered top bar.
 4. Navigation targets:
-   - `/` Home dashboard (Welcome + Recent Games + Recent Chats)
+   - `/` Home dashboard (Welcome + compose-first input + Recent Chats)
    - `/sessions/new` Guided New Session game picker
    - `/games` Games Catalogue
    - `/recent-chats` Recent Chats list
+   - `/request` Request hub
    - `/settings` Settings page
 5. Guest-only state in v1:
    - Show profile footer as `Guest`.
@@ -290,9 +293,27 @@ The longer-term vision is to become the default "rules brain" at the table, even
 5. Rules page includes:
    - AI summary section (setup, turn flow, special cards, winning, common questions).
    - Embedded PDF viewer for official rulebook source.
-   - Placeholder sections for Expansions and Similar games.
+   - Placeholder sections for Expansions and Strategy Tips.
 6. MVP may hardcode Uno metadata and placeholders while keeping structure extensible.
 ***
+
+### F9. Request Hub (Feature / Game / Bug / Other)
+
+**Description:** A single unified Request page captures product feedback and routes it into Supabase + email triage.
+
+**Requirements:**
+
+1. Sidebar includes a `Request` item that routes to `/request`.
+2. `/request` provides one form with:
+   - Type: Feature / Game / Bug / Other
+   - Optional title
+   - Required details
+   - Optional screenshot (upload/camera)
+   - Optional context toggles (URL, game/session, device info)
+3. Backend `POST /api/request` stores all submissions in Supabase `requests`.
+4. Backend generates AI triage fields (subject, summary bullets, tags).
+5. Backend emails triage summary to `tanhunchong01@gmail.com` using Resend when configured.
+6. If email env vars are missing, request still saves and returns a warning.
 
 ## 7. Non-functional Requirements
 
@@ -321,7 +342,7 @@ The longer-term vision is to become the default "rules brain" at the table, even
 ### 8.1 Design Principles
 
 - **Table-first, not tech-first:** Minimize visual noise and interactions so PlayOnLeh feels like a subtle tool at the edge of the table, not the main attraction, similar to companion apps for complex board games.
-- **Fast legibility in dim light:** Support use in cafés, bars, and living rooms with dim lighting by preferring dark theme, high-contrast text, and limited saturated accents.
+- **Fast legibility in dim light:** Support use in cafes, bars, and living rooms with dim lighting by preferring dark theme, high-contrast text, and limited saturated accents.
 - **Game-night personality:** Use playful but restrained visuals (chips, cards, tiles) and a warm color accent so it feels like part of a physical game collection, not a generic SaaS tool.
 - **Consistency and predictability:** Reuse a tight set of components (cards, chips, buttons, form controls, message bubbles) to make behavior obvious and reduce cognitive load.
 
@@ -344,13 +365,13 @@ Target a **dark theme** as default, inspired by Material Design dark-theme guida
 
 - Primary accent reserved for: primary call-to-action, active game chip, send button.
 - Secondary accent for chips, selected filters, and informational highlights.
-- Avoid using more than 2–3 accent colors on a single screen to keep the interface calm.
+- Avoid using more than 2-3 accent colors on a single screen to keep the interface calm.
 
 ### 8.3 Typography
 
 - **Heading font:** Rounded, friendly sans-serif (e.g., Inter, SF Pro, or Rubik) with slightly increased letter-spacing to read well at-a-glance.
-- **Body font:** Same family for consistency; 14–16px on mobile, 16–18px on desktop.
-- **Message text:** 15–16px minimum, with generous line-height (1.4–1.6) to allow quick scanning.
+- **Body font:** Same family for consistency; 14-16px on mobile, 16-18px on desktop.
+- **Message text:** 15-16px minimum, with generous line-height (1.4-1.6) to allow quick scanning.
 - Use typographic hierarchy instead of multiple colors: H1 for page title, H2 for section titles ("House rules"), H3 for smaller labels.
 
 ### 8.4 Iconography & Illustration
@@ -363,20 +384,20 @@ Target a **dark theme** as default, inspired by Material Design dark-theme guida
 
 On desktop/tablet:
 
-- **Left sidebar (~260–300px fixed width):**
+- **Left sidebar (~260-300px fixed width):**
   - PlayOnLeh logo + wordmark.
   - Section groups:
     - PLAY: New Session, Scan Game
     - LIBRARY: Games Catalogue, Recent Chats
     - SETTINGS: Settings
-  - Compact Guest profile row at bottom ("Guest", optional "Local sessions only").
+  - Compact Guest profile row at bottom ("Guest").
 - **Main content area:**
   - Active page content (Home dashboard, Games Catalogue, Setup, Session, Recent Chats, Settings).
 - **Chat area (within session page):**
   - Messages stacked vertically.
   - Input bar anchored to the bottom.
-- **Feedback sidebar:**
-  - Slides from right when a message is downvoted.
+- **Feedback modal:**
+  - Opens centered with a dimmed overlay when a message is downvoted.
 
 On mobile:
 
@@ -386,8 +407,8 @@ On mobile:
 ### 8.6 Key Screens
 
 1. **Home dashboard (`/`)**
-   - Greeting ("Welcome, Guest") and quick helper text.
-   - Recent Games (top unique games inferred from recent sessions).
+   - Time-based greeting ("Good morning/afternoon/evening, Guest") and quick helper text.
+   - Compose-first game picker + chat input flow.
    - Recent Chats preview list.
 
 2. **Games Catalogue (`/games`)**
@@ -406,7 +427,7 @@ On mobile:
 5. **Rules Reader (`/games/:gameId/rules`)**
    - AI summary section grounded in official rule chunks.
    - Embedded official PDF viewer.
-   - Placeholder sections for Expansions and Similar games.
+   - Placeholder sections for Expansions and Strategy Tips.
 
 6. **Scan Game flow**
    - Modal or full-screen step:
@@ -432,12 +453,12 @@ On mobile:
 - **Cards:** for game selection and detection results; elevated with shadow or border.
 - **Form controls:** toggles, radio groups, sliders/numeric steppers; consistent spacing and alignment.
 - **Chat bubbles:** user vs assistant styling (alignment, background tint) with timestamps in subdued text.
-- **Feedback sidebar:** panel with title, reason radio group, multiline text field, submit/cancel buttons.
+- **Feedback modal:** panel with title, reason radio group, multiline text field, submit/cancel buttons.
 
 ### 8.8 Micro-interactions & States
 
 - Sending a message: subtle animation of send button, then typing indicator.
-- Thumbs up/down: small scale animation to confirm selection; 👎 opens feedback modal.
+- Thumbs up/down: small scale animation to confirm selection; clicking 👎 opens feedback modal.
 - House-rules toggles: live summary briefly highlights updated phrases.
 - Box photo upload: progress bar and skeleton placeholder.
 - Error/empty states: friendly copy and simple illustration (e.g., for failed detection or no house rules yet).
@@ -465,9 +486,9 @@ On mobile:
 
 - **Backend (lightweight):**
   - REST API or serverless functions:
-    - `POST /identify-game` – accepts image, returns probable game.
-    - `POST /chat` – accepts session/game/house-rules metadata + question, returns answer.
-    - `POST /feedback` – logs message feedback.
+    - `POST /api/identify-game` - accepts image, returns probable game.
+    - `POST /api/chat` - accepts session/game/house-rules metadata + question, returns answer.
+    - `POST /api/feedback` - logs message feedback.
   - Calls out to:
     - Vision-capable model endpoint for game-box recognition.
     - LLM endpoint for chat completion.
@@ -489,19 +510,19 @@ On mobile:
 
 ## 11. Roadmap
 
-### Phase 0 – Hackathon MVP (12h)
+### Phase 0 - Hackathon MVP (12h)
 
 - Support at least 2 games end-to-end (Uno and Uno Flip):
   - Game selection.
   - Per-game house-rules form.
   - Chat-based rules answering with prompt-based grounding.
   - Box-photo game identification limited to supported game(s).
-  - Feedback sidebar logging.
+  - Feedback modal logging.
 
-### Phase 1 – Early Alpha (Initial production-style feature set)
+### Phase 1 - Early Alpha (Initial production-style feature set)
 
 - **Game coverage:**
-  - Officially support **3 games first: Uno, Uno Flip, Mahjong** with:
+  - Officially support **4 games first: Uno, Uno Flip, Mahjong, Dune: Imperium** with:
     - Per-game house-rules schemas.
     - At least basic rule snippets for grounding.
 - **Rules data:**
@@ -511,7 +532,7 @@ On mobile:
 - **Session persistence:**
   - Basic account or device-level session persistence (e.g., recent sessions, default house rules per game).
 
-### Phase 2 – Teaching & Onboarding Features
+### Phase 2 - Teaching & Onboarding Features
 
 - **Setup walkthroughs:**
   - "Teach me setup" button per game that generates a short, stepwise checklist based on rules, with modes like "Quick start" vs "Full rules".
@@ -520,7 +541,7 @@ On mobile:
 - **Multi-language support:**
   - Begin with English + one additional language common among target users.
 
-### Phase 3 – Deeper Intelligence & Computer Vision
+### Phase 3 - Deeper Intelligence & Computer Vision
 
 - **Board/tableau understanding:**
   - For selected games, allow users to photograph the current hand/tableau/board and ask state-aware questions (e.g., "Is this a legal Mahjong hand?", "Is our Uno starting setup correct?").
@@ -529,7 +550,7 @@ On mobile:
 - **Fair-play and transparency features:**
   - Surface clear "mode" indicators (Practice/Casual/Competitive) and guidelines for when AI help is appropriate.
 
-### Phase 4 – Ecosystem & Publisher Integrations
+### Phase 4 - Ecosystem & Publisher Integrations
 
 - **Publisher console:**
   - Tools for publishers to upload and maintain official rules, FAQs, and errata for their games.
@@ -537,6 +558,10 @@ On mobile:
   - Curate high-signal common questions and answers into semi-official FAQs per game.
 
 PlayOnLeh can start as a focused, delightful rules chatbot for a handful of games, with structured house rules, a small but impressive vision feature, and a coherent design system, then grow into a broader rules and teaching platform for tabletop gaming.
+
+
+
+
 
 
 

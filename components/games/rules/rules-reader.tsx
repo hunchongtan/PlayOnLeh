@@ -39,7 +39,7 @@ export function RulesReader({ game, summaryText }: { game: GameDefinition; summa
             <p className="mt-1 text-sm text-white/60">Coming soon</p>
           </div>
           <div className="rounded-xl border border-dashed border-white/15 bg-white/5 p-4">
-            <p className="text-sm font-medium text-white">Similar games</p>
+            <p className="text-sm font-medium text-white">Strategy Tips</p>
             <p className="mt-1 text-sm text-white/60">Coming soon</p>
           </div>
         </div>

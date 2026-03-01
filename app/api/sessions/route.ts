@@ -6,7 +6,7 @@ import { buildDefaultSessionTitle } from "@/lib/sessions/title";
 import { houseRulesSchema } from "@/types/db";
 
 const createSessionSchema = z.object({
-  gameId: z.enum(["uno", "uno-flip", "mahjong"]),
+  gameId: z.enum(["uno", "uno-flip", "mahjong", "dune-imperium"]),
   houseRulesMode: z.enum(["standard", "custom"]).default("standard"),
   houseRules: houseRulesSchema.optional(),
   houseRulesSummary: z.string().max(4000).optional(),
@@ -27,7 +27,10 @@ export async function GET(req: Request) {
     const limitParam = Number(searchParams.get("limit") ?? 20);
     const limit = Number.isFinite(limitParam) ? Math.max(1, Math.min(100, Math.floor(limitParam))) : 20;
     const gameIdParam = searchParams.get("gameId");
-    const gameId = gameIdParam === "uno" || gameIdParam === "uno-flip" || gameIdParam === "mahjong" ? gameIdParam : undefined;
+    const gameId =
+      gameIdParam === "uno" || gameIdParam === "uno-flip" || gameIdParam === "mahjong" || gameIdParam === "dune-imperium"
+        ? gameIdParam
+        : undefined;
     const sessions = await getRecentSessions(limit, gameId);
     return NextResponse.json({ sessions });
   } catch (error) {

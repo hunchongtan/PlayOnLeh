@@ -1,6 +1,16 @@
 import { getSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import { GameId } from "@/lib/games/types";
-import { GameRecord, HouseRules, MessageRecord, RagChunk, SessionListItem, SessionRecord } from "@/types/db";
+import {
+  GameRecord,
+  HouseRules,
+  MessageRecord,
+  RagChunk,
+  RequestRecord,
+  RequestStatus,
+  RequestType,
+  SessionListItem,
+  SessionRecord,
+} from "@/types/db";
 
 type CreateSessionInput = {
   gameId: GameId;
@@ -17,6 +27,76 @@ type CreateSessionFallbackInput = {
   title?: string;
   modeForResponse: "standard" | "custom";
 };
+
+type UpdateSessionHouseRulesInput = {
+  houseRulesMode: "standard" | "custom";
+  houseRules: HouseRules | Record<string, never>;
+  houseRulesSummary: string;
+};
+
+type CreateRequestInput = {
+  type: RequestType;
+  title?: string | null;
+  details: string;
+  pageUrl?: string | null;
+  gameId?: string | null;
+  sessionId?: string | null;
+  userAgent?: string | null;
+  screenshotUrl?: string | null;
+  ipHash?: string | null;
+};
+
+function inferHouseRulesMode(row: Partial<SessionRecord> & Record<string, unknown>): "standard" | "custom" {
+  const mode = row.house_rules_mode;
+  if (mode === "standard" || mode === "custom") {
+    return mode;
+  }
+
+  const summary = String(row.house_rules_summary ?? "").trim().toLowerCase();
+  const rulesJson = row.house_rules_json as Record<string, unknown> | null | undefined;
+  const hasNonEmptyRules = Boolean(rulesJson && typeof rulesJson === "object" && Object.keys(rulesJson).length > 0);
+
+  if (hasNonEmptyRules) return "custom";
+  if (summary && summary !== "standard rules") return "custom";
+  return "standard";
+}
+
+function normalizeSessionRecord(row: Partial<SessionRecord> & Record<string, unknown>): SessionRecord {
+  return {
+    id: String(row.id),
+    game_id: row.game_id as GameId,
+    house_rules_mode: inferHouseRulesMode(row),
+    house_rules_json: (row.house_rules_json as HouseRules | Record<string, never>) ?? {},
+    house_rules_summary: String(row.house_rules_summary ?? "Standard rules"),
+    title: (row.title as string | null | undefined) ?? null,
+    title_source: (row.title_source as "default" | "ai" | "user" | undefined) ?? "default",
+    created_at: String(row.created_at),
+    updated_at: String(row.updated_at),
+  };
+}
+
+function normalizeRequestRecord(row: Partial<RequestRecord> & Record<string, unknown>): RequestRecord {
+  const status = row.status;
+  const normalizedStatus: RequestStatus = status === "triaged" || status === "closed" ? status : "new";
+
+  return {
+    id: String(row.id),
+    created_at: String(row.created_at),
+    type: row.type as RequestType,
+    title: row.title ? String(row.title) : null,
+    details: String(row.details ?? ""),
+    page_url: row.page_url ? String(row.page_url) : null,
+    game_id: row.game_id ? String(row.game_id) : null,
+    session_id: row.session_id ? String(row.session_id) : null,
+    user_agent: row.user_agent ? String(row.user_agent) : null,
+    screenshot_url: row.screenshot_url ? String(row.screenshot_url) : null,
+    ai_subject: row.ai_subject ? String(row.ai_subject) : null,
+    ai_summary: row.ai_summary ? String(row.ai_summary) : null,
+    ai_tags: Array.isArray(row.ai_tags) ? (row.ai_tags as string[]) : null,
+    status: normalizedStatus,
+    ip_hash: row.ip_hash ? String(row.ip_hash) : null,
+  };
+}
 
 export async function createSession(input: CreateSessionInput): Promise<SessionRecord> {
   const supabase = getSupabaseAdminClient();
@@ -36,7 +116,7 @@ export async function createSession(input: CreateSessionInput): Promise<SessionR
     throw new Error(`Failed to create session: ${error?.message ?? "unknown"}`);
   }
 
-  return data as SessionRecord;
+  return normalizeSessionRecord(data as Partial<SessionRecord> & Record<string, unknown>);
 }
 
 export async function createSessionWithoutMode(input: CreateSessionFallbackInput): Promise<SessionRecord> {
@@ -57,16 +137,11 @@ export async function createSessionWithoutMode(input: CreateSessionFallbackInput
   }
 
   const row = data as Partial<SessionRecord> & Record<string, unknown>;
+  const normalized = normalizeSessionRecord(row);
   return {
-    id: String(row.id),
-    game_id: row.game_id as GameId,
-    house_rules_mode: (row.house_rules_mode as "standard" | "custom" | undefined) ?? input.modeForResponse,
-    house_rules_json: (row.house_rules_json as HouseRules | Record<string, never>) ?? {},
-    house_rules_summary: String(row.house_rules_summary ?? input.houseRulesSummary),
-    title: (row.title as string | null | undefined) ?? null,
-    title_source: (row.title_source as "default" | "ai" | "user" | undefined) ?? "default",
-    created_at: String(row.created_at),
-    updated_at: String(row.updated_at),
+    ...normalized,
+    house_rules_mode: normalized.house_rules_mode ?? input.modeForResponse,
+    house_rules_summary: normalized.house_rules_summary || input.houseRulesSummary,
   };
 }
 
@@ -82,7 +157,7 @@ export async function getRecentSessions(limit = 10, gameId?: GameId): Promise<Se
     throw new Error(`Failed to fetch sessions: ${error.message}`);
   }
 
-  const sessions = (data ?? []) as SessionRecord[];
+  const sessions = ((data ?? []) as Array<Partial<SessionRecord> & Record<string, unknown>>).map((row) => normalizeSessionRecord(row));
   if (!sessions.length) {
     return [];
   }
@@ -146,7 +221,8 @@ export async function getSessionById(sessionId: string): Promise<SessionRecord |
     throw new Error(`Failed to fetch session: ${error.message}`);
   }
 
-  return (data as SessionRecord | null) ?? null;
+  if (!data) return null;
+  return normalizeSessionRecord(data as Partial<SessionRecord> & Record<string, unknown>);
 }
 
 export async function getMostRecentSessionByGame(gameId: GameId): Promise<SessionRecord | null> {
@@ -163,7 +239,8 @@ export async function getMostRecentSessionByGame(gameId: GameId): Promise<Sessio
     throw new Error(`Failed to fetch recent session by game: ${error.message}`);
   }
 
-  return (data as SessionRecord | null) ?? null;
+  if (!data) return null;
+  return normalizeSessionRecord(data as Partial<SessionRecord> & Record<string, unknown>);
 }
 
 export async function getMessagesForSession(sessionId: string): Promise<MessageRecord[]> {
@@ -361,6 +438,89 @@ export async function deleteSessionById(sessionId: string): Promise<boolean> {
   return true;
 }
 
+export async function updateSessionHouseRules(sessionId: string, input: UpdateSessionHouseRulesInput): Promise<SessionRecord | null> {
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("sessions")
+    .update({
+      house_rules_mode: input.houseRulesMode,
+      house_rules_json: input.houseRules,
+      house_rules_summary: input.houseRulesSummary,
+    })
+    .eq("id", sessionId)
+    .select("*")
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to update session house rules: ${error.message}`);
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return normalizeSessionRecord(data as Partial<SessionRecord> & Record<string, unknown>);
+}
+
+export async function createRequest(input: CreateRequestInput): Promise<RequestRecord> {
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("requests")
+    .insert({
+      type: input.type,
+      title: input.title ?? null,
+      details: input.details,
+      page_url: input.pageUrl ?? null,
+      game_id: input.gameId ?? null,
+      session_id: input.sessionId ?? null,
+      user_agent: input.userAgent ?? null,
+      screenshot_url: input.screenshotUrl ?? null,
+      ip_hash: input.ipHash ?? null,
+    })
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    throw new Error(`Failed to create request: ${error?.message ?? "unknown"}`);
+  }
+
+  return normalizeRequestRecord(data as Partial<RequestRecord> & Record<string, unknown>);
+}
+
+export async function updateRequestAiFields(
+  requestId: string,
+  input: { aiSubject?: string | null; aiSummary?: string | null; aiTags?: string[] | null }
+): Promise<void> {
+  const supabase = getSupabaseAdminClient();
+  const { error } = await supabase
+    .from("requests")
+    .update({
+      ai_subject: input.aiSubject ?? null,
+      ai_summary: input.aiSummary ?? null,
+      ai_tags: input.aiTags ?? null,
+    })
+    .eq("id", requestId);
+
+  if (error) {
+    throw new Error(`Failed to update request AI fields: ${error.message}`);
+  }
+}
+
+export async function countRecentRequestsByIpHash(ipHash: string, sinceIso: string): Promise<number> {
+  const supabase = getSupabaseAdminClient();
+  const { count, error } = await supabase
+    .from("requests")
+    .select("id", { count: "exact", head: true })
+    .eq("ip_hash", ipHash)
+    .gte("created_at", sinceIso);
+
+  if (error) {
+    throw new Error(`Failed to count requests by ip hash: ${error.message}`);
+  }
+
+  return count ?? 0;
+}
+
 export async function getGames(): Promise<GameRecord[]> {
   const supabase = getSupabaseAdminClient();
   const { data, error } = await supabase.from("games").select("*");
@@ -415,6 +575,42 @@ export async function uploadChatImage(params: { sessionId: string; file: File; m
   }
 
   return buildPublicStorageUrl(bucketName, objectPath);
+}
+
+export async function uploadRequestScreenshot(params: { file: File; mime: string }) {
+  const supabase = getSupabaseAdminClient();
+  const bucketName = "request-screenshots";
+  await ensureStorageBucketExists(supabase, bucketName);
+  const ext = extensionFromMime(params.mime);
+  const now = new Date();
+  const yyyy = now.getUTCFullYear();
+  const mm = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const objectPath = `requests/${yyyy}/${mm}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
+  const buffer = Buffer.from(await params.file.arrayBuffer());
+  const { error } = await supabase.storage.from(bucketName).upload(objectPath, buffer, {
+    contentType: params.mime,
+    upsert: false,
+  });
+
+  if (error) {
+    throw new Error(
+      `Failed to upload request screenshot to '${bucketName}': ${error.message}. Ensure the bucket exists in the same Supabase project configured by NEXT_PUBLIC_SUPABASE_URL.`
+    );
+  }
+
+  return objectPath;
+}
+
+export async function createSignedRequestScreenshotUrl(objectPath: string, expiresInSeconds = 60 * 60 * 24 * 7) {
+  const supabase = getSupabaseAdminClient();
+  const bucketName = "request-screenshots";
+  const { data, error } = await supabase.storage.from(bucketName).createSignedUrl(objectPath, expiresInSeconds);
+
+  if (error || !data?.signedUrl) {
+    throw new Error(`Failed to create signed screenshot URL: ${error?.message ?? "unknown"}`);
+  }
+
+  return data.signedUrl;
 }
 
 async function ensureStorageBucketExists(

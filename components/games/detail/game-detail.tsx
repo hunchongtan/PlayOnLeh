@@ -4,6 +4,8 @@ import { Clock3, Play, Users, ShieldCheck, BookOpenText, History } from "lucide-
 import { GameDefinition } from "@/lib/games/types";
 
 export function GameDetail({ game, coverImageUrl }: { game: GameDefinition; coverImageUrl?: string }) {
+  const category = game.id === "mahjong" ? "Tile Game" : game.id === "dune-imperium" ? "Board Game" : "Card Game";
+
   return (
     <div className="mx-auto w-full max-w-5xl space-y-8">
       <section className="space-y-5">
@@ -20,7 +22,7 @@ export function GameDetail({ game, coverImageUrl }: { game: GameDefinition; cove
           <div className="absolute inset-x-0 top-0 p-5 sm:p-7">
             <div className="max-w-2xl">
               <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">{game.name}</h1>
-              <p className="mt-1 text-sm font-medium text-white/75">Card Game</p>
+              <p className="mt-1 text-sm font-medium text-white/75">{category}</p>
             </div>
           </div>
         </div>
@@ -75,7 +77,7 @@ export function GameDetail({ game, coverImageUrl }: { game: GameDefinition; cove
       </section>
 
       <section className="space-y-4">
-        <h2 className="text-xl font-semibold tracking-tight text-white">Similar games</h2>
+        <h2 className="text-xl font-semibold tracking-tight text-white">Strategy Tips</h2>
         <div className="rounded-2xl border border-white/10 bg-[#181a20] p-6 text-sm text-white/65">Coming soon</div>
       </section>
     </div>

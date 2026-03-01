@@ -1,7 +1,16 @@
 import { unoDefinition } from "@/lib/games/uno/schema";
 import { unoFlipDefinition } from "@/lib/games/uno-flip/schema";
 import { mahjongDefinition } from "@/lib/games/mahjong/schema";
-import { GameDefinition, GameHouseRules, GameId, MahjongHouseRules, UnoFlipHouseRules, UnoHouseRules } from "@/lib/games/types";
+import { duneImperiumDefinition } from "@/lib/games/dune-imperium/schema";
+import {
+  DuneImperiumHouseRules,
+  GameDefinition,
+  GameHouseRules,
+  GameId,
+  MahjongHouseRules,
+  UnoFlipHouseRules,
+  UnoHouseRules,
+} from "@/lib/games/types";
 
 export type HouseRuleSummary = {
   summary: string;
@@ -12,10 +21,11 @@ export const GAME_REGISTRY: Record<GameId, GameDefinition> = {
   uno: unoDefinition,
   "uno-flip": unoFlipDefinition,
   mahjong: mahjongDefinition,
+  "dune-imperium": duneImperiumDefinition,
 };
 
 export function getGameDefinition(gameId: string): GameDefinition | null {
-  if (gameId === "uno" || gameId === "uno-flip" || gameId === "mahjong") {
+  if (gameId === "uno" || gameId === "uno-flip" || gameId === "mahjong" || gameId === "dune-imperium") {
     return GAME_REGISTRY[gameId];
   }
   return null;
@@ -43,6 +53,9 @@ export function getDefaultUnoFlipHouseRules(): UnoFlipHouseRules {
 }
 
 export function getDefaultHouseRules(gameId: GameId): GameHouseRules {
+  if (gameId === "dune-imperium") {
+    return getDefaultDuneImperiumHouseRules();
+  }
   if (gameId === "mahjong") {
     return getDefaultMahjongHouseRules();
   }
@@ -50,6 +63,14 @@ export function getDefaultHouseRules(gameId: GameId): GameHouseRules {
     return getDefaultUnoFlipHouseRules();
   }
   return getDefaultUnoHouseRules();
+}
+
+export function getDefaultDuneImperiumHouseRules(): DuneImperiumHouseRules {
+  return {
+    expansionVariant: "base",
+    soloMode: false,
+    otherRules: "",
+  };
 }
 
 export function getDefaultMahjongHouseRules(): MahjongHouseRules {
@@ -149,6 +170,24 @@ function normalizeMahjongHouseRules(houseRules: Partial<MahjongHouseRules> | nul
   };
 }
 
+function normalizeDuneImperiumHouseRules(
+  houseRules: Partial<DuneImperiumHouseRules> | null | undefined
+): DuneImperiumHouseRules {
+  const defaults = getDefaultDuneImperiumHouseRules();
+  const raw = houseRules ?? {};
+
+  const expansionVariant =
+    raw.expansionVariant === "base" || raw.expansionVariant === "rise_of_ix" || raw.expansionVariant === "immortality"
+      ? raw.expansionVariant
+      : defaults.expansionVariant;
+
+  return {
+    expansionVariant,
+    soloMode: raw.soloMode === undefined ? defaults.soloMode : Boolean(raw.soloMode),
+    otherRules: typeof raw.otherRules === "string" ? raw.otherRules : "",
+  };
+}
+
 function getUnoHouseRuleSummary(houseRules: Partial<UnoHouseRules> | null | undefined): HouseRuleSummary {
   const normalized = normalizeUnoHouseRules(houseRules);
   const victoryMap: Record<UnoHouseRules["victoryCondition"], string> = {
@@ -218,10 +257,32 @@ function getMahjongHouseRuleSummary(houseRules: Partial<MahjongHouseRules> | nul
   return { summary: toBulletSummaryText(bullets), bullets };
 }
 
+function getDuneImperiumHouseRuleSummary(
+  houseRules: Partial<DuneImperiumHouseRules> | null | undefined
+): HouseRuleSummary {
+  const normalized = normalizeDuneImperiumHouseRules(houseRules);
+  const expansionLabel: Record<DuneImperiumHouseRules["expansionVariant"], string> = {
+    base: "Base game",
+    rise_of_ix: "Rise of Ix",
+    immortality: "Immortality",
+  };
+
+  const bullets = [
+    `Variant profile: ${expansionLabel[normalized.expansionVariant]}.`,
+    normalized.soloMode ? "Solo mode is enabled." : "Solo mode is disabled.",
+    normalized.otherRules.trim() ? `Other custom rules: ${normalized.otherRules.trim()}.` : "",
+  ].filter(Boolean);
+
+  return { summary: toBulletSummaryText(bullets), bullets };
+}
+
 export function getHouseRuleSummary(
   gameId: GameId,
-  houseRules: Partial<UnoHouseRules | UnoFlipHouseRules | MahjongHouseRules> | null | undefined
+  houseRules: Partial<UnoHouseRules | UnoFlipHouseRules | MahjongHouseRules | DuneImperiumHouseRules> | null | undefined
 ): HouseRuleSummary {
+  if (gameId === "dune-imperium") {
+    return getDuneImperiumHouseRuleSummary(houseRules as Partial<DuneImperiumHouseRules> | null | undefined);
+  }
   if (gameId === "mahjong") {
     return getMahjongHouseRuleSummary(houseRules as Partial<MahjongHouseRules> | null | undefined);
   }
@@ -232,6 +293,15 @@ export function getHouseRuleSummary(
 }
 
 export function getStandardRulesSummary(gameId: GameId): HouseRuleSummary {
+  if (gameId === "dune-imperium") {
+    const bullets = [
+      "Use official Dune: Imperium base rulebook flow with no custom overrides.",
+      "Expansion-specific and solo adjustments are off unless configured.",
+      "Table follows official resource, conflict, and victory point rules.",
+    ];
+    return { summary: toBulletSummaryText(bullets), bullets };
+  }
+
   if (gameId === "mahjong") {
     const bullets = [
       "Use international base rules with no table-specific overrides.",

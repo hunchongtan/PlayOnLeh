@@ -15,7 +15,7 @@ export async function GET() {
         id: record.id,
         name: record.name,
         description: record.description,
-        category: record.id === "mahjong" ? "Tile Game" : "Card Game",
+        category: record.id === "mahjong" ? "Tile Game" : record.id === "dune-imperium" ? "Board Game" : "Card Game",
         coverImageUrl,
       };
     });

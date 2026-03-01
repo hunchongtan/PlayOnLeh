@@ -6,7 +6,7 @@ create extension if not exists vector;
 do $$
 begin
   if not exists (select 1 from pg_type where typname = 'game_key') then
-    create type game_key as enum ('uno', 'uno-flip', 'mahjong');
+    create type game_key as enum ('uno', 'uno-flip', 'mahjong', 'dune-imperium');
   elsif not exists (
     select 1
     from pg_enum e
@@ -23,6 +23,15 @@ begin
     where t.typname = 'game_key' and e.enumlabel = 'mahjong'
   ) then
     alter type game_key add value 'mahjong';
+  end if;
+
+  if not exists (
+    select 1
+    from pg_enum e
+    join pg_type t on t.oid = e.enumtypid
+    where t.typname = 'game_key' and e.enumlabel = 'dune-imperium'
+  ) then
+    alter type game_key add value 'dune-imperium';
   end if;
 end$$;
 
@@ -105,11 +114,30 @@ create table if not exists rules_chunks (
   created_at timestamptz not null default now()
 );
 
+create table if not exists requests (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  type text not null check (type in ('feature', 'game', 'bug', 'other')),
+  title text,
+  details text not null,
+  page_url text,
+  game_id text,
+  session_id uuid references sessions(id) on delete set null,
+  user_agent text,
+  screenshot_url text,
+  ai_subject text,
+  ai_summary text,
+  ai_tags text[],
+  status text not null default 'new' check (status in ('new', 'triaged', 'closed')),
+  ip_hash text
+);
+
 insert into games (id, name, description, storage_bucket, cover_object_path, rules_pdf_object_path)
 values
   ('uno', 'Uno', 'Classic shedding card game', 'Uno', 'uno-pic.jpg', 'uno-rules.pdf'),
   ('uno-flip', 'Uno Flip', 'Dual-sided Uno variant with Light and Dark sides.', 'Uno-flip', 'uno-flip-pic.jpg', 'uno-flip-rules.pdf'),
-  ('mahjong', 'Mahjong', 'Tile-based strategy game with regional variants.', 'Mahjong', 'mahjong-pic.jpg', 'mahjong-rules.pdf')
+  ('mahjong', 'Mahjong', 'Tile-based strategy game with regional variants.', 'Mahjong', 'mahjong-pic.jpg', 'mahjong-rules.pdf'),
+  ('dune-imperium', 'Dune: Imperium', 'Strategic deck-building and worker placement game set in the Dune universe.', 'Dune', 'dune-pic.jpg', 'dune-rules.pdf')
 on conflict (id) do update set
   name = excluded.name,
   description = excluded.description,
@@ -122,6 +150,8 @@ create index if not exists idx_feedback_session_created on feedback(session_id, 
 create index if not exists idx_sessions_updated on sessions(updated_at desc);
 create index if not exists idx_rules_chunks_game_chunk on rules_chunks(game_id, chunk_index);
 create index if not exists idx_rules_chunks_embedding on rules_chunks using ivfflat (embedding vector_cosine_ops) with (lists = 100);
+create index if not exists idx_requests_created_at on requests(created_at desc);
+create index if not exists idx_requests_ip_created on requests(ip_hash, created_at desc);
 create unique index if not exists idx_rules_chunks_unique_variant
   on rules_chunks (game_id, coalesce(variant_id, ''), source_url, chunk_index);
 

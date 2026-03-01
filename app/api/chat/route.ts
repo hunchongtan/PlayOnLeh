@@ -13,7 +13,7 @@ const requestSchema = z.object({
 
 const formSchema = z.object({
   sessionId: z.string().uuid(),
-  gameId: z.enum(["uno", "uno-flip", "mahjong"]).optional(),
+  gameId: z.enum(["uno", "uno-flip", "mahjong", "dune-imperium"]).optional(),
   text: z.string().max(2000).optional(),
   useOnlineSources: z.boolean().optional(),
 });
@@ -23,7 +23,7 @@ const MAX_IMAGE_SIZE = 8 * 1024 * 1024;
 
 type ParsedChatRequest = {
   sessionId: string;
-  gameId?: "uno" | "uno-flip" | "mahjong";
+  gameId?: "uno" | "uno-flip" | "mahjong" | "dune-imperium";
   message: string;
   imageFile?: File;
   useOnlineSources: boolean;
@@ -146,7 +146,10 @@ async function parseChatRequest(req: Request): Promise<{ ok: true; value: Parsed
     const rawText = formData.get("text");
     const parsed = formSchema.safeParse({
       sessionId: typeof rawSessionId === "string" ? rawSessionId : undefined,
-      gameId: rawGameId === "uno" || rawGameId === "uno-flip" || rawGameId === "mahjong" ? rawGameId : undefined,
+      gameId:
+        rawGameId === "uno" || rawGameId === "uno-flip" || rawGameId === "mahjong" || rawGameId === "dune-imperium"
+          ? rawGameId
+          : undefined,
       text: typeof rawText === "string" ? rawText : undefined,
       useOnlineSources: formData.get("useOnlineSources") === "true",
     });

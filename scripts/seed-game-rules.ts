@@ -45,7 +45,7 @@ function chunkText(text: string, target = 1000, overlap = 150): Chunk[] {
 
 function getCliGameId(): GameId {
   const fromArg = process.argv.find((arg) => arg.startsWith("--gameId="))?.split("=")[1];
-  if (fromArg === "uno" || fromArg === "uno-flip" || fromArg === "mahjong") {
+  if (fromArg === "uno" || fromArg === "uno-flip" || fromArg === "mahjong" || fromArg === "dune-imperium") {
     return fromArg;
   }
   return "uno";
@@ -88,12 +88,15 @@ async function main() {
     embeddings.push(embedding.data[0].embedding);
   }
 
+  const sourceTitle =
+    gameId === "mahjong" ? "International Mahjong Rules" : gameId === "dune-imperium" ? "Dune: Imperium Official Rulebook" : `${game.name} Rules`;
+
   const total = await upsertRulesChunks(
     gameId,
     chunks.map((chunk, idx) => ({
       variant_id: null,
       source_url: publicUrl,
-      source_title: gameId === "mahjong" ? "International Mahjong Rules" : `${game.name} Rules`,
+      source_title: sourceTitle,
       page_start: chunk.page_start,
       chunk_index: chunk.chunk_index,
       content: chunk.content,

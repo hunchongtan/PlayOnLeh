@@ -8,6 +8,12 @@ type ChatTurn = {
   content: string;
 };
 
+export type RequestSummary = {
+  subject: string;
+  summaryBullets: string[];
+  tags: string[];
+};
+
 export async function embedText(text: string): Promise<number[]> {
   const client = getOpenAIClient();
   const response = await client.embeddings.create({
@@ -227,6 +233,119 @@ export async function generateRulesSummary(params: { gameId: GameId; gameName: s
   };
 }
 
+export async function summarizeRequestForTriage(params: {
+  type: "feature" | "game" | "bug" | "other";
+  title?: string;
+  details: string;
+  pageUrl?: string;
+  gameId?: string;
+  sessionId?: string;
+  userAgent?: string;
+}): Promise<RequestSummary> {
+  const client = getOpenAIClient();
+  const response = await client.responses.create({
+    model: "gpt-4.1",
+    temperature: 0.2,
+    text: {
+      format: {
+        type: "json_schema",
+        name: "request_summary",
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            subject: { type: "string" },
+            summaryBullets: {
+              type: "array",
+              minItems: 2,
+              maxItems: 5,
+              items: { type: "string" },
+            },
+            tags: {
+              type: "array",
+              minItems: 1,
+              maxItems: 6,
+              items: { type: "string" },
+            },
+          },
+          required: ["subject", "summaryBullets", "tags"],
+        },
+      },
+    },
+    input: [
+      {
+        role: "system",
+        content: [
+          {
+            type: "input_text",
+            text: [
+              "You summarize incoming product requests for engineering triage.",
+              "Return concise, practical outputs only.",
+              "Subject: one short line.",
+              "summaryBullets: 2-5 bullets with clear next-action context.",
+              "tags: short lowercase labels.",
+              "For bug reports, include likely steps to reproduce and expected vs actual behavior when inferable.",
+              "Do not include markdown, links, or emojis.",
+            ].join("\n"),
+          },
+        ],
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: JSON.stringify(
+              {
+                type: params.type,
+                title: params.title ?? null,
+                details: params.details,
+                page_url: params.pageUrl ?? null,
+                game_id: params.gameId ?? null,
+                session_id: params.sessionId ?? null,
+                user_agent: params.userAgent ?? null,
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      },
+    ],
+  });
+
+  const raw = response.output_text?.trim();
+  if (!raw) {
+    return {
+      subject: params.title?.trim() || "New request submission",
+      summaryBullets: ["Details received and stored for triage.", "Needs manual review."],
+      tags: [params.type],
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as RequestSummary;
+    const bullets = Array.isArray(parsed.summaryBullets)
+      ? parsed.summaryBullets.map((item) => sanitizeGeneratedReply(String(item))).filter(Boolean).slice(0, 5)
+      : [];
+    const tags = Array.isArray(parsed.tags)
+      ? parsed.tags.map((item) => sanitizeTag(String(item))).filter(Boolean).slice(0, 6)
+      : [];
+
+    return {
+      subject: sanitizeGeneratedReply(parsed.subject || params.title || "New request submission"),
+      summaryBullets: bullets.length ? bullets : ["Details received and stored for triage."],
+      tags: tags.length ? tags : [params.type],
+    };
+  } catch {
+    return {
+      subject: params.title?.trim() || "New request submission",
+      summaryBullets: ["Details received and stored for triage.", "Needs manual review."],
+      tags: [params.type],
+    };
+  }
+}
+
 type IdentifyCandidate = {
   gameId: GameId;
   name: string;
@@ -257,8 +376,9 @@ export async function identifyGameFromImage(params: { base64DataUrl: string }): 
             confidenceUno: { type: "number", minimum: 0, maximum: 1 },
             confidenceUnoFlip: { type: "number", minimum: 0, maximum: 1 },
             confidenceMahjong: { type: "number", minimum: 0, maximum: 1 },
+            confidenceDuneImperium: { type: "number", minimum: 0, maximum: 1 },
           },
-          required: ["detectedTitle", "confidenceUno", "confidenceUnoFlip", "confidenceMahjong"],
+          required: ["detectedTitle", "confidenceUno", "confidenceUnoFlip", "confidenceMahjong", "confidenceDuneImperium"],
         },
       },
     },
@@ -269,7 +389,7 @@ export async function identifyGameFromImage(params: { base64DataUrl: string }): 
           {
             type: "input_text",
             text:
-              "You are matching a game box photo to supported games. Supported games: Uno, Uno Flip, Mahjong. Return confidenceUno, confidenceUnoFlip, and confidenceMahjong from 0 to 1.",
+              "You are matching a game box photo to supported games. Supported games: Uno, Uno Flip, Mahjong, Dune: Imperium. Return confidenceUno, confidenceUnoFlip, confidenceMahjong, and confidenceDuneImperium from 0 to 1.",
           },
           {
             type: "input_image",
@@ -286,15 +406,23 @@ export async function identifyGameFromImage(params: { base64DataUrl: string }): 
     return { detectedGame: null, confidence: 0, rawLabel: "", candidates: [] };
   }
 
-  const parsed = JSON.parse(raw) as { detectedTitle: string; confidenceUno: number; confidenceUnoFlip: number; confidenceMahjong: number };
+  const parsed = JSON.parse(raw) as {
+    detectedTitle: string;
+    confidenceUno: number;
+    confidenceUnoFlip: number;
+    confidenceMahjong: number;
+    confidenceDuneImperium: number;
+  };
   const unoConfidence = Math.max(0, Math.min(1, parsed.confidenceUno ?? 0));
   const unoFlipConfidence = Math.max(0, Math.min(1, parsed.confidenceUnoFlip ?? 0));
   const mahjongConfidence = Math.max(0, Math.min(1, parsed.confidenceMahjong ?? 0));
+  const duneImperiumConfidence = Math.max(0, Math.min(1, parsed.confidenceDuneImperium ?? 0));
 
   const candidates: IdentifyCandidate[] = [
     { gameId: "uno", name: "Uno", confidence: unoConfidence },
     { gameId: "uno-flip", name: "Uno Flip", confidence: unoFlipConfidence },
     { gameId: "mahjong", name: "Mahjong", confidence: mahjongConfidence },
+    { gameId: "dune-imperium", name: "Dune: Imperium", confidence: duneImperiumConfidence },
   ];
   candidates.sort((a, b) => b.confidence - a.confidence);
 
@@ -481,4 +609,11 @@ function sanitizeSessionTitle(raw: string) {
   const minWords = capped.split(" ").filter(Boolean).length;
   if (minWords >= 3) return capped;
   return `${capped} Discussion`.trim();
+}
+
+function sanitizeTag(raw: string) {
+  return raw
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "")
+    .slice(0, 32);
 }

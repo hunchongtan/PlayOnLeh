@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Camera, Paperclip, ThumbsDown, ThumbsUp, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { FeedbackSheet } from "@/components/chat/feedback-sheet";
+import { HouseRulesForm } from "@/components/house-rules/house-rules-form";
 import { validateChatImageFile } from "@/lib/chat/image-attachment";
 import { readOnlineSourcesPreference } from "@/lib/client/preferences";
 import { getGameDefinition, getStandardRulesSummary } from "@/lib/games/registry";
@@ -17,6 +17,12 @@ import { MessageRecord, SessionRecord } from "@/types/db";
 import { toast } from "sonner";
 
 type Message = Pick<MessageRecord, "id" | "role" | "content" | "created_at" | "image_url" | "image_mime">;
+type RulesChangedEvent = {
+  id: string;
+  type: "rules_changed";
+  text: string;
+  created_at: string;
+};
 
 export function ChatSessionClient({
   initialSession,
@@ -28,9 +34,12 @@ export function ChatSessionClient({
   initialFeedbackByMessage: Record<string, "up" | "down">;
 }) {
   const router = useRouter();
+  const [sessionState, setSessionState] = useState<SessionRecord>(initialSession);
   const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [rulesChangedEvents, setRulesChangedEvents] = useState<RulesChangedEvent[]>([]);
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [rulesEditorOpen, setRulesEditorOpen] = useState(false);
   const [sessionTitle, setSessionTitle] = useState(() =>
     resolveSessionTitle({
       title: initialSession.title,
@@ -53,15 +62,21 @@ export function ChatSessionClient({
   const [useOnlineSources, setUseOnlineSources] = useState(false);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const gameDefinition = useMemo(() => getGameDefinition(sessionState.game_id), [sessionState.game_id]);
+  const timelineItems = useMemo(() => {
+    const messageItems = messages.map((message) => ({ type: "message" as const, created_at: message.created_at, message }));
+    const eventItems = rulesChangedEvents.map((event) => ({ type: "event" as const, created_at: event.created_at, event }));
+    return [...messageItems, ...eventItems].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  }, [messages, rulesChangedEvents]);
 
   const summaryBullets = useMemo(() => {
-    const raw = (initialSession.house_rules_summary ?? "").trim();
+    const raw = (sessionState.house_rules_summary ?? "").trim();
     if (!raw) {
-      return getStandardRulesSummary(initialSession.game_id).bullets;
+      return getStandardRulesSummary(sessionState.game_id).bullets;
     }
     return parseSummaryBullets(raw);
-  }, [initialSession.game_id, initialSession.house_rules_summary]);
-  const rulesModeLabel = (initialSession.house_rules_mode ?? "standard") === "custom" ? "Custom" : "Standard";
+  }, [sessionState.game_id, sessionState.house_rules_summary]);
+  const rulesModeLabel = (sessionState.house_rules_mode ?? "standard") === "custom" ? "Custom" : "Standard";
   useEffect(() => {
     setUseOnlineSources(readOnlineSourcesPreference());
   }, []);
@@ -105,7 +120,7 @@ export function ChatSessionClient({
             body: (() => {
               const formData = new FormData();
               formData.set("sessionId", initialSession.id);
-              formData.set("gameId", initialSession.game_id);
+              formData.set("gameId", sessionState.game_id);
               formData.set("text", text);
               formData.set("useOnlineSources", useOnlineSources ? "true" : "false");
               formData.set("image", pendingImageFile);
@@ -268,13 +283,15 @@ export function ChatSessionClient({
         <div className="flex items-center justify-between">
           <h1 className="truncate pr-3 text-lg font-semibold">{sessionTitle}</h1>
           <div className="flex items-center gap-1">
-            <Link
-              href={`/setup/${initialSession.game_id}`}
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setRulesEditorOpen(true)}
               className="rounded-md border border-white/15 bg-white/[0.04] px-2 py-1 text-xs text-white/80 hover:bg-white/[0.08]"
               title="Using standard rules. You can customize house rules anytime."
             >
               Rules: {rulesModeLabel}
-            </Link>
+            </Button>
             <Button
               type="button"
               variant="ghost"
@@ -301,7 +318,19 @@ export function ChatSessionClient({
 
       <main className="flex min-h-0 h-full flex-col">
         <div className="flex-1 space-y-3 overflow-y-auto overscroll-contain p-4">
-          {messages.map((message) => {
+          {timelineItems.map((item) => {
+            if (item.type === "event") {
+              return (
+                <div key={item.event.id} className="my-2 flex items-center gap-3 text-xs text-white/50">
+                  <div className="h-px flex-1 bg-white/10" />
+                  <span className="shrink-0">{item.event.text}</span>
+                  <span className="shrink-0 text-white/35">{new Date(item.event.created_at).toLocaleTimeString()}</span>
+                  <div className="h-px flex-1 bg-white/10" />
+                </div>
+              );
+            }
+
+            const message = item.message;
             const isAssistant = message.role === "assistant";
             return (
               <Card
@@ -466,6 +495,41 @@ export function ChatSessionClient({
               {isDeletingSession ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={rulesEditorOpen} onOpenChange={setRulesEditorOpen}>
+        <DialogContent className="max-h-[90vh] w-[92vw] max-w-3xl overflow-y-auto rounded-2xl border-white/10 bg-[#181a20]">
+          <DialogHeader>
+            <DialogTitle>Configure House Rules</DialogTitle>
+          </DialogHeader>
+          {gameDefinition ? (
+            <HouseRulesForm
+              game={gameDefinition}
+              flow="edit-session"
+              sessionId={sessionState.id}
+              initialDraft={{
+                houseRulesMode: sessionState.house_rules_mode ?? "standard",
+                houseRulesJson: sessionState.house_rules_json ?? {},
+                houseRulesSummary: sessionState.house_rules_summary ?? "Standard rules",
+              }}
+              onSavedSession={(updatedSession) => {
+                setSessionState(updatedSession);
+                setRulesEditorOpen(false);
+                const modeLabel = updatedSession.house_rules_mode === "custom" ? "Custom" : "Standard";
+                const now = new Date().toISOString();
+                setRulesChangedEvents((prev) => [
+                  ...prev,
+                  {
+                    id: `rules-${updatedSession.id}-${Date.now()}`,
+                    type: "rules_changed",
+                    text: `Rules updated: ${modeLabel}`,
+                    created_at: now,
+                  },
+                ]);
+              }}
+            />
+          ) : null}
         </DialogContent>
       </Dialog>
     </div>

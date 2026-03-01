@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getDefaultHouseRules, getHouseRuleSummary, getStandardRulesSummary } from "@/lib/games/registry";
 import { GameDefinition } from "@/lib/games/types";
-import { HouseRules } from "@/types/db";
+import { HouseRules, SessionRecord } from "@/types/db";
 import { toast } from "sonner";
 
 export type HouseRulesDraftState = {
@@ -22,15 +22,19 @@ export type HouseRulesDraftState = {
 export function HouseRulesForm({
   game,
   flow = "session",
+  sessionId,
   initialDraft,
   onSaveDraft,
   onCancelDraft,
+  onSavedSession,
 }: {
   game: GameDefinition;
-  flow?: "session" | "draft";
+  flow?: "session" | "draft" | "edit-session";
+  sessionId?: string;
   initialDraft?: HouseRulesDraftState;
   onSaveDraft?: (draft: HouseRulesDraftState) => void;
   onCancelDraft?: () => void;
+  onSavedSession?: (session: SessionRecord) => void;
 }) {
   const router = useRouter();
   const submitLockRef = useRef(false);
@@ -96,6 +100,43 @@ export function HouseRulesForm({
 
     if (flow === "draft") {
       onSaveDraft?.(draftState);
+      return;
+    }
+
+    if (flow === "edit-session") {
+      if (!sessionId) {
+        setError("Missing session id for rule update");
+        return;
+      }
+
+      setIsSubmitting(true);
+      submitLockRef.current = true;
+      setError(null);
+
+      try {
+        const res = await fetch(`/api/sessions/${sessionId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            houseRulesMode: draftState.houseRulesMode,
+            houseRules: draftState.houseRulesMode === "custom" ? draftState.houseRulesJson : undefined,
+            houseRulesSummary: draftState.houseRulesSummary,
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error ?? "Failed to update rules");
+        }
+
+        toast.success("Rules updated");
+        onSavedSession?.(data.session as SessionRecord);
+      } catch (submitError) {
+        setError(submitError instanceof Error ? submitError.message : "Failed to update rules");
+      } finally {
+        setIsSubmitting(false);
+        submitLockRef.current = false;
+      }
       return;
     }
 
@@ -271,7 +312,17 @@ export function HouseRulesForm({
             </Button>
           ) : null}
           <Button onClick={handleSubmit} className={flow === "draft" ? "sm:min-w-40" : "w-full"} disabled={isSubmitting || !canStart || isSaving}>
-            {flow === "draft" ? (isSaving ? "Saving..." : "Save rules") : isSubmitting ? "Starting Session..." : "Start Session"}
+            {flow === "draft"
+              ? isSaving
+                ? "Saving..."
+                : "Save rules"
+              : flow === "edit-session"
+                ? isSubmitting
+                  ? "Saving..."
+                  : "Update rules"
+                : isSubmitting
+                  ? "Starting Session..."
+                  : "Start Session"}
           </Button>
         </div>
       </div>
