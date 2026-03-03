@@ -35,9 +35,10 @@ export async function generateChatAnswer(params: {
 }) {
   const queryEmbedding = await embedText(params.question);
   const chunks = await searchRulesChunks(params.gameId, queryEmbedding, 4, null);
+  const explicitOnlineIntent = wantsOnlineLookup(params.question);
   const shouldUseOnlineSources =
     Boolean(params.useOnlineSources) &&
-    (chunks.length === 0 || looksLikeVariantOrMissingRule(params.question, params.houseRulesSummary));
+    (explicitOnlineIntent || chunks.length === 0 || looksLikeVariantOrMissingRule(params.question, params.houseRulesSummary));
 
   const contextText = chunks.length
     ? chunks
@@ -464,7 +465,16 @@ export function sanitizeGeneratedReply(text: string) {
 
 function looksLikeVariantOrMissingRule(question: string, houseRulesSummary: string) {
   const combined = `${question} ${houseRulesSummary}`.toLowerCase();
-  return /(variant|themed|special card|promo|expansion|custom card|spy|anya|not in rules|not in rulebook)/i.test(combined);
+  return /(variant|themed|special card|promo|expansion|custom card|house rule|not in rules|not in rulebook|not in official rules|this deck|our deck|edition-specific)/i.test(
+    combined
+  );
+}
+
+function wantsOnlineLookup(question: string) {
+  const normalized = question.toLowerCase();
+  return /(go online|search online|search web|web search|look online|internet|google|latest|most recent|up to date|current ruling|check online)/i.test(
+    normalized
+  );
 }
 
 async function generateWebFallbackAnswer(params: {
