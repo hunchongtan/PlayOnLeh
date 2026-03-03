@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { FeedbackSheet } from "@/components/chat/feedback-sheet";
+import { ChatMarkdown } from "@/components/chat/chat-markdown";
 import { HouseRulesForm } from "@/components/house-rules/house-rules-form";
 import { validateChatImageFile } from "@/lib/chat/image-attachment";
 import { readOnlineSourcesPreference } from "@/lib/client/preferences";
@@ -346,9 +347,15 @@ export function ChatSessionClient({
                     <img src={message.image_url} alt="User upload" className="max-h-56 w-full object-cover" />
                   </div>
                 ) : null}
-                <div className="min-w-0 text-sm leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere] [&_pre]:max-w-full [&_pre]:overflow-x-auto">
-                  {message.content}
-                </div>
+                {isAssistant ? (
+                  <div className="min-w-0 text-sm leading-relaxed text-white/95">
+                    <ChatMarkdown content={message.content} />
+                  </div>
+                ) : (
+                  <div className="min-w-0 text-sm leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere]">
+                    {message.content}
+                  </div>
+                )}
                 <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
                   <span>{new Date(message.created_at).toLocaleTimeString()}</span>
                   {isAssistant ? (

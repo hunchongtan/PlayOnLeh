@@ -59,6 +59,7 @@ export async function generateChatAnswer(params: {
     "Never mention RAG, chunk numbers, source URLs, retrieval internals, or citations in the reply.",
     "Use plain, non-technical language for casual players.",
     "Do not use rigid section headers like 'From rulebook' or 'From online sources' unless explicitly asked.",
+    "When using lists or headings, format valid Markdown with proper line breaks.",
     "If an image is provided, briefly use visible state when relevant.",
     "If image details are insufficient or ambiguous, ask 1-2 clarifying questions instead of guessing.",
     params.gameId === "uno" || params.gameId === "uno-flip"
@@ -442,8 +443,9 @@ export function formatRagContext(chunks: RagChunk[]) {
   return chunks.map((chunk, index) => `Rule context ${index + 1}: ${chunk.content}`).join("\n\n");
 }
 
-function sanitizeGeneratedReply(text: string) {
+export function sanitizeGeneratedReply(text: string) {
   return text
+    .replace(/\r\n?/g, "\n")
     .replace(/^From\s+rulebook:\s*/gi, "")
     .replace(/^From\s+online\s+sources:\s*/gi, "")
     .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/gi, "$1")
@@ -454,7 +456,9 @@ function sanitizeGeneratedReply(text: string) {
     .replace(/\[?\s*chunk\s*\d+\s*\]?/gi, "")
     .replace(/\(\s*chunk\s*\d+\s*\)/gi, "")
     .replace(/https?:\/\/\S+/gi, "")
-    .replace(/\s{2,}/g, " ")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
